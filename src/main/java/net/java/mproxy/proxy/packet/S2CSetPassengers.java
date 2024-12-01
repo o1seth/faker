@@ -8,6 +8,15 @@ public class S2CSetPassengers implements Packet {
     public int vehicle;
     public int[] passengers;
 
+    public S2CSetPassengers() {
+
+    }
+
+    public S2CSetPassengers(int vehicle) {
+        this.vehicle = vehicle;
+        this.passengers = new int[0];
+    }
+
     @Override
     public void read(ByteBuf byteBuf, int protocolVersion) {
         this.vehicle = PacketTypes.readVarInt(byteBuf);

@@ -29,7 +29,7 @@ import java.nio.file.Files;
 
 public class Proxy {
     public static final InetSocketAddress proxyAddress = new InetSocketAddress("0.0.0.0", 25565);
-    public static final InetSocketAddress targetAddress = new InetSocketAddress("127.0.0.1", 25500);
+    public static final InetSocketAddress targetAddress = new InetSocketAddress("eu.loyisa.cn", 25565);
     public static final int compressionThreshold = 256;
     public static final int connectTimeout = 8000;
     public static Account account;

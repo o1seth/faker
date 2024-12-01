@@ -15,9 +15,6 @@ public abstract class PacketHandler {
         this.proxyConnection = proxyConnection;
     }
 
-    public void handleP2S(DualConnection dualConnection, final Packet packet, final List<ChannelFutureListener> listeners) {
-
-    }
 
     public boolean handleC2P(final Packet packet, final List<ChannelFutureListener> listeners) throws Exception {
         return true;

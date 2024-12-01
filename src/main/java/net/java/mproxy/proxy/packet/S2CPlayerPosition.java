@@ -13,6 +13,22 @@ public abstract class S2CPlayerPosition implements Packet {
     public float yaw;
     public float pitch;
 
+    public static S2CPlayerPosition create(int protocolVersion) {
+        S2CPlayerPosition p = null;
+        if (protocolVersion >= MCVersion.v1_21_2) {
+            p = new S2CPlayerPosition.v1_21_2();
+        } else if (protocolVersion >= MCVersion.v1_19_4) {
+            p = new S2CPlayerPosition.v1_19_4();
+        } else if (protocolVersion >= MCVersion.v1_17) {
+            p = new S2CPlayerPosition.v1_17();
+        } else if (protocolVersion >= MCVersion.v1_9) {
+            p = new S2CPlayerPosition.v1_9();
+        } else if (protocolVersion >= MCVersion.v1_7_2) {
+            p = new S2CPlayerPosition.v1_7_2();
+        }
+        return p;
+    }
+
     public static S2CPlayerPosition createFrom(DualConnection connection, C2SMovePlayer move, int protocolVersion) {
         S2CPlayerPosition p = null;
         if (protocolVersion >= MCVersion.v1_21_2) {

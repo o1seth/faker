@@ -3,10 +3,12 @@ package net.java.mproxy.proxy.session;
 
 import io.netty.channel.Channel;
 import net.java.mproxy.proxy.packet.C2SPlayerCommand;
+import net.java.mproxy.proxy.packet.S2CSetPassengers;
 import net.java.mproxy.proxy.util.ChannelUtil;
 import net.java.mproxy.proxy.util.chat.ChatSession1_19_3;
 import net.raphimc.netminecraft.constants.ConnectionState;
 import net.raphimc.netminecraft.constants.MCPipeline;
+import net.raphimc.netminecraft.constants.MCVersion;
 
 public class DualConnection {
     protected final ProxyConnection mainConnection;
@@ -31,6 +33,7 @@ public class DualConnection {
     public int entityId;
 
     public int vehicleId = -1;
+    public S2CSetPassengers setPassengersPacket;
     private ChatSession1_19_3 chatSession1_19_3;
     private final Object controllerLocker;
 
@@ -100,6 +103,16 @@ public class DualConnection {
                 stopSprint.action = C2SPlayerCommand.Action.STOP_SPRINTING;
                 controller.sendToServer(stopSprint);
                 sprintState = C2SPlayerCommand.Action.STOP_SPRINTING;
+            }
+            if (isPassenger() && mainConnection.getVersion() >= MCVersion.v1_9) {
+                if (!follower.isPassenger) {
+                    follower.sendToClient(this.setPassengersPacket);
+                    follower.isPassenger = true;
+                }
+                if (controller.isPassenger) {
+                    controller.sendToClient(new S2CSetPassengers(vehicleId));
+                    controller.isPassenger = false;
+                }
             }
 //            if (this.entityId != 0) {
 //                S2CSetEntityMotion motion = new S2CSetEntityMotion();
@@ -185,6 +198,15 @@ public class DualConnection {
             return false;
         }
         return mainConnection.getC2pConnectionState() == ConnectionState.PLAY && sideConnection.getC2pConnectionState() == ConnectionState.PLAY;
+    }
+
+    public void clearVehicle() {
+        vehicleId = -1;
+        setPassengersPacket = null;
+        mainConnection.isPassenger = false;
+        if (sideConnection != null) {
+            sideConnection.isPassenger = false;
+        }
     }
 
     public boolean isPassenger() {

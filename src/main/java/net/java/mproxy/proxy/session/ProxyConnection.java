@@ -67,6 +67,8 @@ public class ProxyConnection extends NetClient {
     public static final int SYNC_POS_SENT = 1;
     public static final int SYNC_POS_RECEIVED = 2;
 
+    public volatile boolean isPassenger;
+
     //    LinkedList<Packet> packets = Collections.synchronizedList(new LinkedList<>());
     public ProxyConnection(final Supplier<ChannelHandler> handlerSupplier, final Function<Supplier<ChannelHandler>, ChannelInitializer<Channel>> channelInitializerSupplier, final Channel c2p) {
         super(handlerSupplier, channelInitializerSupplier);

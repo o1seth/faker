@@ -13,10 +13,21 @@ public class S2CEntityPositionSync implements Packet {
     public float yaw;
     public float pitch;
     public boolean onGround;
-
     private double dx;
     private double dy;
     private double dz;
+
+    public static S2CEntityPositionSync fromVehicle(C2SMoveVehicle moveVehicle, int vehicleId) {
+        S2CEntityPositionSync positionSync = new S2CEntityPositionSync();
+        positionSync.x = moveVehicle.x;
+        positionSync.y = moveVehicle.y;
+        positionSync.z = moveVehicle.z;
+
+        positionSync.yaw = moveVehicle.yaw;
+        positionSync.pitch = moveVehicle.pitch;
+        positionSync.entityId = vehicleId;
+        return positionSync;
+    }
 
     @Override
     public void read(ByteBuf byteBuf, int protocolVersion) {

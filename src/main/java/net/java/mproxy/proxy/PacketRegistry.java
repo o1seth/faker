@@ -16,6 +16,18 @@ public class PacketRegistry extends DefaultPacketRegistry {
         registerPacket(MCPackets.C2S_PLAYER_COMMAND, C2SPlayerCommand::new);
         registerPacket(MCPackets.S2C_SET_ENTITY_MOTION, S2CSetEntityMotion::new);
 
+        if (protocolVersion < MCVersion.v1_17) {
+            registerPacket(MCPackets.S2C_DESTROY_ENTITIES, S2CDestroyEntities::new);
+        } else if (protocolVersion == MCVersion.v1_17) {
+            registerPacket(MCPackets.S2C_REMOVE_ENTITY, S2CRemoveEntity::new);
+        } else {
+            registerPacket(MCPackets.S2C_REMOVE_ENTITIES, S2CDestroyEntities::new);
+        }
+
+        if (protocolVersion < MCVersion.v1_9) {
+            //also exists on 1.9+, but in proxy only needed for mount vehicle
+            registerPacket(MCPackets.S2C_SET_ENTITY_LINK, S2CEntityAttach::new);
+        }
 
         if (protocolVersion >= MCVersion.v1_21_2) {
             registerPacket(MCPackets.S2C_ENTITY_POSITION_SYNC, S2CEntityPositionSync::new);

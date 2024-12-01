@@ -21,40 +21,43 @@ public class MovePlayerPacketHandler extends PacketHandler {
     @Override
     public boolean handleC2P(Packet packet, List<ChannelFutureListener> listeners) {
 
+        DualConnection dualConnection = proxyConnection.dualConnection;
+        if (dualConnection == null) {
+            return true;
+        }
+
         if (packet instanceof C2SMoveVehicle moveVehicle) {
             lastMoveVehicle = true;
 
             if (!proxyConnection.isController()) {
                 return true;
             }
-            DualConnection dualConnection = proxyConnection.dualConnection;
-            if (dualConnection == null) {
-                return true;
-            }
+
             if (dualConnection.vehicleId < 0) {
                 return true;
             }
-            S2CEntityPositionSync positionSync = new S2CEntityPositionSync();
-            positionSync.x = moveVehicle.x;
-            positionSync.y = moveVehicle.y;
-            positionSync.z = moveVehicle.z;
 
-            positionSync.yaw = moveVehicle.yaw;
-            positionSync.pitch = moveVehicle.pitch;
-            positionSync.entityId = dualConnection.vehicleId;
             ProxyConnection follower = dualConnection.getFollower();
             if (follower != null && !follower.isClosed()) {
-                S2CSetPassengers removePass = new S2CSetPassengers();
-                removePass.vehicle = dualConnection.vehicleId;
-                removePass.passengers = new int[0];
-                follower.sendToClient(removePass);
-
+                if (follower.isPassenger) {
+                    //remove passengers
+                    follower.sendToClient(new S2CSetPassengers(dualConnection.vehicleId));
+                    follower.isPassenger = false;
+                }
+                S2CPlayerPosition newPos = S2CPlayerPosition.create(proxyConnection.getVersion());
+                newPos.x = moveVehicle.x;
+                newPos.y = moveVehicle.y;
+                newPos.z = moveVehicle.z;
+                newPos.yaw = dualConnection.playerYaw;
+                newPos.pitch = dualConnection.playerPitch;
+                follower.sendToClient(newPos);
+                S2CEntityPositionSync positionSync = S2CEntityPositionSync.fromVehicle(moveVehicle, dualConnection.vehicleId);
                 follower.sendToClient(positionSync);
 
-                S2CSetPassengers addPass = new S2CSetPassengers();
-                addPass.vehicle = dualConnection.vehicleId;
-                addPass.passengers = new int[]{dualConnection.entityId};
-                follower.sendToClient(addPass);
+//                S2CSetPassengers addPass = new S2CSetPassengers();
+//                addPass.vehicle = dualConnection.vehicleId;
+//                addPass.passengers = new int[]{dualConnection.entityId};
+//                follower.sendToClient(addPass);
 //                S2CPlayerPosition pos = new S2CPlayerPosition.v1_21_2();
 //                pos.x = moveVehicle.x;
 //                pos.y = moveVehicle.y;
@@ -70,10 +73,6 @@ public class MovePlayerPacketHandler extends PacketHandler {
 
         if (packet instanceof C2SMovePlayer move) {
             if (!proxyConnection.isController()) {
-                return true;
-            }
-            DualConnection dualConnection = proxyConnection.dualConnection;
-            if (dualConnection == null) {
                 return true;
             }
 
@@ -121,25 +120,24 @@ public class MovePlayerPacketHandler extends PacketHandler {
             dualConnection.onGround = packetOnGround;
             ProxyConnection follower = dualConnection.getFollower();
             if (follower != null && !follower.isClosed()) {
-
-//                if (lastMoveVehicle) {
-//                    lastMoveVehicle = false;
-                if (packet instanceof C2SMovePlayer.Rot && dualConnection.isPassenger()) {
-                    if (proxyConnection.getVersion() >= MCVersion.v1_21_2) {
-                        S2CPlayerRotation rotation = new S2CPlayerRotation();
-                        rotation.yaw = newYaw;
-                        rotation.pitch = packetPitch;
-                        follower.sendToClient(rotation);
-                    }
-
+//                if (packet instanceof C2SMovePlayer.Rot && dualConnection.isPassenger()) {
+//                    if (proxyConnection.getVersion() >= MCVersion.v1_21_2) {
+//                        S2CPlayerRotation rotation = new S2CPlayerRotation();
+//                        rotation.yaw = newYaw;
+//                        rotation.pitch = packetPitch;
+//                        follower.sendToClient(rotation);
+//                    }
+//
+//                    return true;
+//                }
+                if (proxyConnection.getVersion() < MCVersion.v1_9 && dualConnection.isPassenger()) {
                     return true;
                 }
-//                }
-
-
                 S2CPlayerPosition newPos = S2CPlayerPosition.createFrom(dualConnection, move, proxyConnection.getVersion());
                 follower.sendToClient(newPos);
                 follower.syncPosState = ProxyConnection.SYNC_POS_SENT;
+
+
 //                if (dualConnection.entityId != 0) {
 //                    S2CSetEntityMotion motion = new S2CSetEntityMotion();
 //                    motion.entityId = dualConnection.entityId;
@@ -168,34 +166,60 @@ public class MovePlayerPacketHandler extends PacketHandler {
         return value;
     }
 
+
     @Override
     public void handleP2S(Packet packet, List<ChannelFutureListener> listeners) {
-        if (packet instanceof S2CSetPassengers pass) {
-            DualConnection dualConnection = proxyConnection.dualConnection;
-            if (dualConnection == null) {
-                return;
+        DualConnection dualConnection = proxyConnection.dualConnection;
+        if (dualConnection == null) {
+            return;
+        }
+        if (packet instanceof S2CEntityAttach attach) {
+            if (dualConnection.entityId == attach.entity && attach.leash == 0) {
+                if (attach.vehicle == -1) {
+                    dualConnection.clearVehicle();
+                } else {
+                    dualConnection.vehicleId = attach.vehicle;
+                    dualConnection.getMainConnection().isPassenger = true;
+                    dualConnection.getSideConnection().isPassenger = true;
+                }
             }
+        } else if (packet instanceof S2CDestroyEntities destroy) {
+
+            if (dualConnection.isPassenger()) {
+                for (int id : destroy.entities) {
+                    if (id == dualConnection.vehicleId) {
+                        dualConnection.clearVehicle();
+                        break;
+                    }
+                }
+            }
+        } else if (packet instanceof S2CRemoveEntity remove) {
+
+            if (dualConnection.isPassenger()) {
+                if (remove.entity == dualConnection.vehicleId) {
+                    dualConnection.clearVehicle();
+                }
+            }
+        } else if (packet instanceof S2CSetPassengers pass) {
+
+
 //            System.out.println("PASS me: " + dualConnection.entityId + " :: " + pass.vehicle + " " + Arrays.toString(pass.passengers));
             if (dualConnection.vehicleId == pass.vehicle) {
-                dualConnection.vehicleId = -1;
+                dualConnection.clearVehicle();
             }
             for (int id : pass.passengers) {
                 if (id == dualConnection.entityId) {
                     dualConnection.vehicleId = pass.vehicle;
-                    System.out.println("NEW VEHICLE " + dualConnection.vehicleId);
+                    dualConnection.setPassengersPacket = pass;
+                    dualConnection.getMainConnection().isPassenger = true;
+                    dualConnection.getSideConnection().isPassenger = true;
                     break;
                 }
             }
-
-        }
-        if (packet instanceof S2CPlayerPosition || packet instanceof S2CPlayerRotation) {
+        } else if (packet instanceof S2CPlayerPosition || packet instanceof S2CPlayerRotation) {
 //            if (!proxyConnection.isController()) {
 //                return;
 //            }
-            DualConnection dualConnection = proxyConnection.dualConnection;
-            if (dualConnection == null) {
-                return;
-            }
             if (packet instanceof S2CPlayerPosition p) {
                 dualConnection.playerYaw = p.yaw % 360;
             } else {
