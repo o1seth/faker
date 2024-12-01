@@ -16,7 +16,6 @@ public class MovePlayerPacketHandler extends PacketHandler {
         super(proxyConnection);
     }
 
-    boolean lastMoveVehicle;
 
     @Override
     public boolean handleC2P(Packet packet, List<ChannelFutureListener> listeners) {
@@ -27,8 +26,6 @@ public class MovePlayerPacketHandler extends PacketHandler {
         }
 
         if (packet instanceof C2SMoveVehicle moveVehicle) {
-            lastMoveVehicle = true;
-
             if (!proxyConnection.isController()) {
                 return true;
             }
@@ -170,7 +167,12 @@ public class MovePlayerPacketHandler extends PacketHandler {
     @Override
     public void handleP2S(Packet packet, List<ChannelFutureListener> listeners) {
         DualConnection dualConnection = proxyConnection.dualConnection;
+
         if (dualConnection == null) {
+            return;
+        }
+        //do only once
+        if (dualConnection.getMainConnection() != this.proxyConnection) {
             return;
         }
         if (packet instanceof S2CEntityAttach attach) {

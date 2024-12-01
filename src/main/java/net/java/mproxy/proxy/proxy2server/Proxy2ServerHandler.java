@@ -9,6 +9,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import net.java.mproxy.Proxy;
 import net.java.mproxy.proxy.external_interface.ExternalInterface;
+import net.java.mproxy.proxy.packet.S2CDestroyEntities;
 import net.java.mproxy.proxy.packet.S2CEntityPositionSync;
 import net.java.mproxy.proxy.packet.S2CPlayerPosition;
 import net.java.mproxy.proxy.packet.S2CSetEntityMotion;
@@ -92,7 +93,7 @@ public class Proxy2ServerHandler extends SimpleChannelInboundHandler<Packet> {
             }
         }
 
-        if (!(packet instanceof UnknownPacket) && !(packet instanceof S2CSetEntityMotion) && !(packet instanceof S2CEntityPositionSync)) {
+        if (!(packet instanceof UnknownPacket) && !(packet instanceof S2CSetEntityMotion) && !(packet instanceof S2CEntityPositionSync) && !(packet instanceof S2CDestroyEntities)) {
             System.out.println("IN  " + packet);
         }
 
@@ -276,11 +277,15 @@ public class Proxy2ServerHandler extends SimpleChannelInboundHandler<Packet> {
             DualConnection dualConnection = this.proxyConnection.dualConnection;
             if (packet.packetId == this.joinGamePacketId) {
                 if (!dualConnection.isBothPlayState()) {
-                    Logger.raw("                                                                                   NOT BOTH IN PLAY STATE!");
+                    Logger.raw("\n\n\n\n\n                                                                                   NOT BOTH CONNECTION IN PLAY STATE!\n\n\n");
                 }
-                System.out.println("IN  JoinGamePacket ");
+                if (dualConnection.isFirstSwap()) {
+                    dualConnection.setFirstSwap();
+                    dualConnection.swapController();
+                }
 
                 dualConnection.entityId = Unpooled.wrappedBuffer(packet.data).readInt();
+                System.out.println("IN  JoinGamePacket, player id " + dualConnection.entityId);
                 if (dualConnection.isP2sEncrypted() && dualConnection.getChatSession1_19_3() != null) {
                     final ChatSession1_19_3 chatSession = dualConnection.getChatSession1_19_3();
                     listeners.add(f -> {

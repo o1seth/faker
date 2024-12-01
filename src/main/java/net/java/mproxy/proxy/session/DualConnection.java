@@ -13,7 +13,6 @@ import net.raphimc.netminecraft.constants.MCVersion;
 public class DualConnection {
     protected final ProxyConnection mainConnection;
     protected ProxyConnection sideConnection;
-
     public final Object waiter = new Object();
     public double prevX;
     public double prevY;
@@ -31,12 +30,11 @@ public class DualConnection {
     public C2SPlayerCommand.Action shiftState = C2SPlayerCommand.Action.RELEASE_SHIFT_KEY;
     public C2SPlayerCommand.Action sprintState = C2SPlayerCommand.Action.STOP_SPRINTING;
     public int entityId;
-
     public int vehicleId = -1;
     public S2CSetPassengers setPassengersPacket;
     private ChatSession1_19_3 chatSession1_19_3;
     private final Object controllerLocker;
-
+    private boolean firstSwap = true;
 
     public DualConnection(ProxyConnection mainConnection) {
         this.mainConnection = mainConnection;
@@ -60,18 +58,6 @@ public class DualConnection {
         ChannelUtil.restoreAutoRead(this.getChannel());
     }
 
-    boolean firstSwap = true;
-
-    public void onPlay() {
-        if (firstSwap) {
-
-            if (getSideConnection().getC2pConnectionState() == ConnectionState.PLAY && getMainConnection().getC2pConnectionState() == ConnectionState.PLAY) {
-                swapController();
-                System.out.println("FIRST SWAP!");
-                firstSwap = false;
-            }
-        }
-    }
 
     public void setSideConnection(ProxyConnection sideConnection) {
         sideConnection.controllerLocker = this.controllerLocker;
@@ -79,6 +65,15 @@ public class DualConnection {
 //        synchronized (waiter) {
 //            waiter.notifyAll();
 //        }
+    }
+
+
+    public boolean isFirstSwap() {
+        return this.firstSwap;
+    }
+
+    public void setFirstSwap() {
+        this.firstSwap = true;
     }
 
     public synchronized void swapController() {
