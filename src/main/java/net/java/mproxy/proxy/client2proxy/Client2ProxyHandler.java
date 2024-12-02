@@ -1,10 +1,12 @@
 package net.java.mproxy.proxy.client2proxy;
 
 
+import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.util.AttributeKey;
 import net.java.mproxy.Proxy;
 import net.java.mproxy.auth.Account;
 import net.java.mproxy.proxy.packet.C2SMovePlayer;
@@ -31,7 +33,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
-
+    public static final AttributeKey<Client2ProxyHandler> CLIENT_2_PROXY_ATTRIBUTE_KEY = AttributeKey.valueOf("proxy_connection");
     private ProxyConnection proxyConnection;
 
     @Override
@@ -39,6 +41,7 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
         super.channelActive(ctx);
         final Supplier<ChannelHandler> handlerSupplier = Proxy2ServerHandler::new;
         this.proxyConnection = new ProxyConnection(handlerSupplier, Proxy2ServerChannelInitializer::new, ctx.channel());
+        ctx.channel().attr(CLIENT_2_PROXY_ATTRIBUTE_KEY).set(this);
 //        this.proxyConnection = new DummyProxyConnection(ctx.channel());
         Proxy.getConnectedClients().add(ctx.channel());
     }
@@ -69,6 +72,21 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
             }
         }
 
+    }
+
+    public void onHandshake(C2SHandshakingClientIntentionPacket handshakingPacket) {
+
+    }
+
+    @Override
+    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+
+        if (msg instanceof ByteBuf) {
+            this.proxyConnection.getChannel().writeAndFlush(msg);
+
+            return;
+        }
+        super.channelRead(ctx, msg);
     }
 
     @Override

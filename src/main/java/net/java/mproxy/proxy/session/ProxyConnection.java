@@ -10,9 +10,7 @@ import net.java.mproxy.Proxy;
 import net.java.mproxy.auth.Account;
 import net.java.mproxy.proxy.PacketRegistry;
 import net.java.mproxy.proxy.packet.C2SMovePlayer;
-import net.java.mproxy.proxy.packet.C2SPlayerCommand;
 import net.java.mproxy.proxy.packethandler.PacketHandler;
-import net.java.mproxy.proxy.util.ChannelUtil;
 import net.java.mproxy.proxy.util.CloseAndReturn;
 import net.java.mproxy.util.logging.Logger;
 import net.lenni0451.mcstructs.text.components.StringComponent;
@@ -21,7 +19,6 @@ import net.raphimc.netminecraft.constants.MCPipeline;
 import net.raphimc.netminecraft.netty.connection.NetClient;
 import net.raphimc.netminecraft.netty.crypto.AESEncryption;
 import net.raphimc.netminecraft.packet.Packet;
-import net.raphimc.netminecraft.packet.UnknownPacket;
 import net.raphimc.netminecraft.packet.impl.configuration.S2CConfigDisconnectPacket;
 import net.raphimc.netminecraft.packet.impl.handshaking.C2SHandshakingClientIntentionPacket;
 import net.raphimc.netminecraft.packet.impl.login.C2SLoginHelloPacket;
@@ -32,8 +29,10 @@ import net.raphimc.netminecraft.util.ChannelType;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
-import java.util.*;
-import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -371,5 +370,31 @@ public class ProxyConnection extends NetClient {
         synchronized (controllerLocker) {
             this.isController = controller;
         }
+    }
+
+    public void setPaththrough() {
+        try {
+            removeHandlers(getC2P());
+            removeHandlers(getChannel());
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void removeHandlers(Channel channel) {
+        if (channel == null) {
+            return;
+        }
+        channel.attr(MCPipeline.ENCRYPTION_ATTRIBUTE_KEY).set(null);
+        channel.attr(MCPipeline.COMPRESSION_THRESHOLD_ATTRIBUTE_KEY).set(null);
+        channel.attr(MCPipeline.PACKET_REGISTRY_ATTRIBUTE_KEY).set(null);
+
+        channel.pipeline().remove(MCPipeline.ENCRYPTION_HANDLER_NAME);
+        channel.pipeline().remove(MCPipeline.SIZER_HANDLER_NAME);
+        channel.pipeline().remove(MCPipeline.FLOW_CONTROL_HANDLER_NAME);
+        channel.pipeline().remove(MCPipeline.COMPRESSION_HANDLER_NAME);
+        channel.pipeline().remove(MCPipeline.PACKET_CODEC_HANDLER_NAME);
+//        channel.pipeline().remove(MCPipeline.HANDLER_HANDLER_NAME);
     }
 }

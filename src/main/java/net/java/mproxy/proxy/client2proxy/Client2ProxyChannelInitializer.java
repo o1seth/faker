@@ -17,7 +17,9 @@ public class Client2ProxyChannelInitializer extends MinecraftChannelInitializer 
 
     @Override
     protected void initChannel(Channel channel) {
+        channel.pipeline().addLast("handshake_codec", new HandshakeCodec());
         super.initChannel(channel);
+
         channel.attr(MCPipeline.PACKET_REGISTRY_ATTRIBUTE_KEY).set(new PacketRegistry(false, -1));
     }
 

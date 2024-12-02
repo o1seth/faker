@@ -77,6 +77,17 @@ public class Proxy2ServerHandler extends SimpleChannelInboundHandler<Packet> {
     }
 
     @Override
+    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+        System.out.println("SEND S " + msg);
+        if (msg instanceof ByteBuf) {
+            this.proxyConnection.getC2P().writeAndFlush(msg);
+
+            return;
+        }
+        super.channelRead(ctx, msg);
+    }
+
+    @Override
     protected void channelRead0(ChannelHandlerContext ctx, Packet packet) throws Exception {
 
         ProxyConnection sideConnection = null;
