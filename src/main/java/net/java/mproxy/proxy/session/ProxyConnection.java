@@ -31,6 +31,7 @@ import net.raphimc.netminecraft.packet.impl.play.S2CPlayDisconnectPacket;
 import net.raphimc.netminecraft.packet.impl.status.S2CStatusResponsePacket;
 import net.raphimc.netminecraft.util.ChannelType;
 
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.*;
@@ -97,7 +98,13 @@ public class ProxyConnection extends NetClient {
 
     public ChannelFuture connectToServer(final SocketAddress serverAddress) {
         this.serverAddress = serverAddress;
-        return super.connect(serverAddress);
+        if (this.channelFuture == null) {
+            this.initialize(ChannelType.get(serverAddress), new Bootstrap());
+        }
+        this.getChannel().bind(new InetSocketAddress(0)).syncUninterruptibly();
+        InetSocketAddress localAddress = (InetSocketAddress) this.getChannel().localAddress();
+        int port = localAddress.getPort();
+        return this.getChannel().connect(serverAddress);
     }
 
     public Channel getC2P() {
