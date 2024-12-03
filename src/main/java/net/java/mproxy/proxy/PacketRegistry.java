@@ -31,6 +31,8 @@ public class PacketRegistry extends DefaultPacketRegistry {
         if (protocolVersion >= MCVersion.v1_17) {
             registerPacket(MCPackets.C2S_PONG, C2SPong::new);
             registerPacket(MCPackets.S2C_PING, S2CPing::new);
+        } else {
+            registerPacket(MCPackets.C2S_WINDOW_CONFIRMATION, C2SWindowConfirmation::new);
         }
 
         if (protocolVersion >= MCVersion.v1_21_2) {

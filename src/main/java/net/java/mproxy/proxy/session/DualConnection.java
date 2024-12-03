@@ -2,6 +2,7 @@ package net.java.mproxy.proxy.session;
 
 
 import io.netty.channel.Channel;
+import net.java.mproxy.proxy.packet.C2SAbstractPong;
 import net.java.mproxy.proxy.packet.C2SPlayerCommand;
 import net.java.mproxy.proxy.packet.C2SPong;
 import net.java.mproxy.proxy.packet.S2CSetPassengers;
@@ -40,7 +41,8 @@ public class DualConnection {
     private ChatSession1_19_3 chatSession1_19_3;
     private final Object controllerLocker;
     private boolean firstSwap = true;
-    List<C2SPong> skipPongs = Collections.emptyList();
+    private List<C2SAbstractPong> skipPongs = Collections.emptyList();
+    private long lastSwapControllerTime;
 
     public DualConnection(ProxyConnection mainConnection) {
         this.mainConnection = mainConnection;
@@ -76,14 +78,15 @@ public class DualConnection {
         return this.firstSwap;
     }
 
-    boolean skipPong(C2SPong pong) {
-        for (int i = 0; i < skipPongs.size(); i++) {
-            if (skipPongs.get(i).equals(pong)) {
-                skipPongs.remove(i);
-                return true;
-            }
+    boolean skipPong(C2SAbstractPong pong) {
+        if (skipPongs.isEmpty()) {
+            return false;
         }
-        return false;
+        if (System.currentTimeMillis() - this.lastSwapControllerTime > 3500) {
+            skipPongs.clear();
+            return false;
+        }
+        return skipPongs.remove(pong);
     }
 
     public synchronized void swapController() {
@@ -136,14 +139,19 @@ public class DualConnection {
 //                }
 //            }
 
-            C2SPong lastSentPong = controller.getLastSentPong();
-            List<C2SPong> notSentPongs = follower.getPongPacketsAfter(lastSentPong);
-            for (C2SPong pong : notSentPongs) {
+            C2SAbstractPong lastSentPong = controller.getLastSentPong();
+            List<C2SAbstractPong> notSentPongs = follower.getPongPacketsAfter(lastSentPong);
+            for (C2SAbstractPong pong : notSentPongs) {
                 controller.getChannel().writeAndFlush(pong).syncUninterruptibly();
             }
             this.skipPongs = controller.getPongPacketsAfter(follower.getLastSentPong());
-            Logger.raw("NOT SENT PONGS " + notSentPongs);
-            Logger.raw("SKIP     PONGS " + this.skipPongs);
+            if (!notSentPongs.isEmpty()) {
+                Logger.raw("NOT SENT PONGS " + notSentPongs);
+            }
+            if (!this.skipPongs.isEmpty()) {
+                Logger.raw("SKIP     PONGS " + this.skipPongs);
+            }
+
 //            if (this.entityId != 0) {
 //                S2CSetEntityMotion motion = new S2CSetEntityMotion();
 //                motion.entityId = entityId;
@@ -152,6 +160,7 @@ public class DualConnection {
 //                motion.motionZ = playerZ - prevZ;
 //                follower.sendToClient(motion);
 //            }
+            this.lastSwapControllerTime = System.currentTimeMillis();
             follower.isController = true;
             controller.isController = false;
         }

@@ -116,24 +116,23 @@ public class Proxy2ServerHandler extends SimpleChannelInboundHandler<Packet> {
             handleS2CLoginHello(p);
             return;
         }
-        if (dualConnection != null && packet instanceof S2CPlayerPosition && firstSwap) {
-
-            firstSwap = false;
-            new Thread() {
-                @Override
-                public void run() {
-                    while (Proxy.dualConnection != null) {
-                        try {
-                            Thread.sleep(10000);
-                            dualConnection.swapController();
-                            System.out.println("SWAP CONTROLLER");
-                        } catch (InterruptedException e) {
-                            throw new RuntimeException(e);
-                        }
-                    }
-                }
-            }.start();
-        }
+//        if (dualConnection != null && packet instanceof S2CPlayerPosition && firstSwap) {
+//            firstSwap = false;
+//            new Thread() {
+//                @Override
+//                public void run() {
+//                    while (Proxy.dualConnection != null) {
+//                        try {
+//                            Thread.sleep(10000);
+//                            dualConnection.swapController();
+//                            System.out.println("SWAP CONTROLLER");
+//                        } catch (InterruptedException e) {
+//                            throw new RuntimeException(e);
+//                        }
+//                    }
+//                }
+//            }.start();
+//        }
         final List<ChannelFutureListener> listeners = new ArrayList<>(2);
         listeners.add(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
 

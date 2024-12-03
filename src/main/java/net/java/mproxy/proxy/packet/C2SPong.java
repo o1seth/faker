@@ -1,9 +1,8 @@
 package net.java.mproxy.proxy.packet;
 
 import io.netty.buffer.ByteBuf;
-import net.raphimc.netminecraft.packet.Packet;
 
-public class C2SPong implements Packet {
+public class C2SPong extends C2SAbstractPong {
     public int id;
 
     @Override
@@ -14,6 +13,11 @@ public class C2SPong implements Packet {
     @Override
     public void write(ByteBuf byteBuf, int protocolVersion) {
         byteBuf.writeInt(this.id);
+    }
+
+    @Override
+    public int getId() {
+        return id;
     }
 
     @Override
@@ -33,4 +37,6 @@ public class C2SPong implements Packet {
     public String toString() {
         return "C2SPong " + id;
     }
+
+
 }

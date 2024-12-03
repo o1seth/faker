@@ -10,6 +10,7 @@ import net.java.mproxy.Proxy;
 import net.java.mproxy.auth.Account;
 import net.java.mproxy.proxy.PacketRegistry;
 import net.java.mproxy.proxy.client2proxy.HandshakeCodec;
+import net.java.mproxy.proxy.packet.C2SAbstractPong;
 import net.java.mproxy.proxy.packet.C2SMovePlayer;
 import net.java.mproxy.proxy.packet.C2SPong;
 import net.java.mproxy.proxy.packethandler.PacketHandler;
@@ -60,7 +61,7 @@ public class ProxyConnection extends NetClient {
     private ConnectionState c2pConnectionState = ConnectionState.HANDSHAKING;
     private ConnectionState p2sConnectionState = ConnectionState.HANDSHAKING;
     private static final int MAX_SENT_PACKETS = 64;
-    private LinkedList<Packet> sentPackets = new LinkedList<>();
+    private final LinkedList<Packet> sentPackets = new LinkedList<>();
     Object controllerLocker = new Object();
     public int syncPosState;
     public static final int SYNC_POS_SENT = 1;
@@ -186,14 +187,14 @@ public class ProxyConnection extends NetClient {
 //            Logger.raw(Integer.toUnsignedString(this.hashCode(), 16) + " send packet " + msg);
 //        }
 
-        if (msg instanceof C2SPong pong) {
-            if (dualConnection != null && dualConnection.skipPong(pong)) {
-                Logger.raw("SKIP: " + PacketUtils.toString(pong));
-            } else {
-                Logger.raw("SEND: " + PacketUtils.toString(pong));
-            }
-
-        }
+//        if (msg instanceof C2SAbstractPong pong) {
+//            if (dualConnection != null && dualConnection.skipPong(pong)) {
+//                Logger.raw("SKIP: " + PacketUtils.toString(pong));
+//            } else {
+//                Logger.raw("SEND: " + PacketUtils.toString(pong));
+//            }
+//
+//        }
         return getChannel().writeAndFlush(msg);
     }
 
@@ -357,29 +358,31 @@ public class ProxyConnection extends NetClient {
         throw CloseAndReturn.INSTANCE;
     }
 
-    public C2SPong getLastSentPong() {
-        C2SPong last = null;
+    public C2SAbstractPong getLastSentPong() {
+        C2SAbstractPong last = null;
         for (Packet p : this.sentPackets) {
-            if (p instanceof C2SPong) {
-                last = (C2SPong) p;
+            if (p instanceof C2SAbstractPong) {
+                last = (C2SAbstractPong) p;
             }
         }
         return last;
     }
 
-    public List<C2SPong> getPongPacketsAfter(C2SPong after) {
+    public List<C2SAbstractPong> getPongPacketsAfter(C2SAbstractPong after) {
         if (after == null) {
             return Collections.emptyList();
         }
-        List<C2SPong> pongs = new ArrayList<>(6);
+
+        List<C2SAbstractPong> pongs = new ArrayList<>(6);
         boolean add = false;
         for (Packet p : this.sentPackets) {
-            if (p instanceof C2SPong pong) {
+            if (p instanceof C2SAbstractPong pong) {
                 if (add) {
                     pongs.add(pong);
                 }
-                if (after.id == pong.id) {
+                if (after.getId() == pong.getId()) {
                     add = true;
+                    pongs.clear();
                 }
             }
         }
