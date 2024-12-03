@@ -9,10 +9,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import net.java.mproxy.Proxy;
 import net.java.mproxy.proxy.external_interface.ExternalInterface;
-import net.java.mproxy.proxy.packet.S2CDestroyEntities;
-import net.java.mproxy.proxy.packet.S2CEntityPositionSync;
-import net.java.mproxy.proxy.packet.S2CPlayerPosition;
-import net.java.mproxy.proxy.packet.S2CSetEntityMotion;
+import net.java.mproxy.proxy.packet.*;
 import net.java.mproxy.proxy.packethandler.PacketHandler;
 import net.java.mproxy.proxy.session.DualConnection;
 import net.java.mproxy.proxy.session.ProxyConnection;
@@ -107,7 +104,7 @@ public class Proxy2ServerHandler extends SimpleChannelInboundHandler<Packet> {
             }
         }
 
-        if (!(packet instanceof UnknownPacket) && !(packet instanceof S2CSetEntityMotion) && !(packet instanceof S2CEntityPositionSync) && !(packet instanceof S2CDestroyEntities)) {
+        if (!(packet instanceof UnknownPacket) && !(packet instanceof S2CSetEntityMotion) && !(packet instanceof S2CEntityPositionSync) && !(packet instanceof S2CDestroyEntities) && !(packet instanceof S2CPing)) {
             System.out.println("IN  " + packet);
         }
 
@@ -122,20 +119,20 @@ public class Proxy2ServerHandler extends SimpleChannelInboundHandler<Packet> {
         if (dualConnection != null && packet instanceof S2CPlayerPosition && firstSwap) {
 
             firstSwap = false;
-//            new Thread() {
-//                @Override
-//                public void run() {
-////                    while (Proxy.dualConnection != null) {
-//                        try {
-//                            Thread.sleep(20000);
-//                            dualConnection.swapController();
-//                            System.out.println("SWAP CONTROLLER");
-//                        } catch (InterruptedException e) {
-//                            throw new RuntimeException(e);
-//                        }
-////                    }
-//                }
-//            }.start();
+            new Thread() {
+                @Override
+                public void run() {
+                    while (Proxy.dualConnection != null) {
+                        try {
+                            Thread.sleep(10000);
+                            dualConnection.swapController();
+                            System.out.println("SWAP CONTROLLER");
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                }
+            }.start();
         }
         final List<ChannelFutureListener> listeners = new ArrayList<>(2);
         listeners.add(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);

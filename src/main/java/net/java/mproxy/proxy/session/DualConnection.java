@@ -3,6 +3,7 @@ package net.java.mproxy.proxy.session;
 
 import io.netty.channel.Channel;
 import net.java.mproxy.proxy.packet.C2SPlayerCommand;
+import net.java.mproxy.proxy.packet.C2SPong;
 import net.java.mproxy.proxy.packet.S2CSetPassengers;
 import net.java.mproxy.proxy.util.ChannelUtil;
 import net.java.mproxy.proxy.util.chat.ChatSession1_19_3;
@@ -10,6 +11,9 @@ import net.java.mproxy.util.logging.Logger;
 import net.raphimc.netminecraft.constants.ConnectionState;
 import net.raphimc.netminecraft.constants.MCPipeline;
 import net.raphimc.netminecraft.constants.MCVersion;
+
+import java.util.Collections;
+import java.util.List;
 
 public class DualConnection {
     protected final ProxyConnection mainConnection;
@@ -36,6 +40,7 @@ public class DualConnection {
     private ChatSession1_19_3 chatSession1_19_3;
     private final Object controllerLocker;
     private boolean firstSwap = true;
+    List<C2SPong> skipPongs = Collections.emptyList();
 
     public DualConnection(ProxyConnection mainConnection) {
         this.mainConnection = mainConnection;
@@ -59,7 +64,6 @@ public class DualConnection {
         ChannelUtil.restoreAutoRead(this.getChannel());
     }
 
-
     public void setSideConnection(ProxyConnection sideConnection) {
         sideConnection.controllerLocker = this.controllerLocker;
         this.sideConnection = sideConnection;
@@ -68,11 +72,19 @@ public class DualConnection {
 //        }
     }
 
-
     public boolean isFirstSwap() {
         return this.firstSwap;
     }
 
+    boolean skipPong(C2SPong pong) {
+        for (int i = 0; i < skipPongs.size(); i++) {
+            if (skipPongs.get(i).equals(pong)) {
+                skipPongs.remove(i);
+                return true;
+            }
+        }
+        return false;
+    }
 
     public synchronized void swapController() {
         this.firstSwap = false;
@@ -108,6 +120,30 @@ public class DualConnection {
                     controller.isPassenger = false;
                 }
             }
+
+
+//            List<Packet> controllerPackets = controller.getSentPackets();
+//            List<Packet> followerPackets = follower.getSentPackets();
+//            if (controllerPackets.size() == followerPackets.size()) {
+//                Iterator<Packet> citerator = controllerPackets.iterator();
+//                Iterator<Packet> fiterator = followerPackets.iterator();
+//                int i = 0;
+//                while (citerator.hasNext()) {
+//                    Packet cp = citerator.next();
+//                    Packet fp = fiterator.next();
+//                    Logger.raw(i + "  " + PacketUtils.toString(cp) + " " + PacketUtils.toString(fp));
+//                    i++;
+//                }
+//            }
+
+            C2SPong lastSentPong = controller.getLastSentPong();
+            List<C2SPong> notSentPongs = follower.getPongPacketsAfter(lastSentPong);
+            for (C2SPong pong : notSentPongs) {
+                controller.getChannel().writeAndFlush(pong).syncUninterruptibly();
+            }
+            this.skipPongs = controller.getPongPacketsAfter(follower.getLastSentPong());
+            Logger.raw("NOT SENT PONGS " + notSentPongs);
+            Logger.raw("SKIP     PONGS " + this.skipPongs);
 //            if (this.entityId != 0) {
 //                S2CSetEntityMotion motion = new S2CSetEntityMotion();
 //                motion.entityId = entityId;

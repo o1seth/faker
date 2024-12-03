@@ -28,6 +28,10 @@ public class PacketRegistry extends DefaultPacketRegistry {
             //also exists on 1.9+, but in proxy only needed for mount vehicle
             registerPacket(MCPackets.S2C_SET_ENTITY_LINK, S2CEntityAttach::new);
         }
+        if (protocolVersion >= MCVersion.v1_17) {
+            registerPacket(MCPackets.C2S_PONG, C2SPong::new);
+            registerPacket(MCPackets.S2C_PING, S2CPing::new);
+        }
 
         if (protocolVersion >= MCVersion.v1_21_2) {
             registerPacket(MCPackets.S2C_ENTITY_POSITION_SYNC, S2CEntityPositionSync::new);

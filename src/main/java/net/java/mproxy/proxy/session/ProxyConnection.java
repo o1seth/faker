@@ -11,8 +11,10 @@ import net.java.mproxy.auth.Account;
 import net.java.mproxy.proxy.PacketRegistry;
 import net.java.mproxy.proxy.client2proxy.HandshakeCodec;
 import net.java.mproxy.proxy.packet.C2SMovePlayer;
+import net.java.mproxy.proxy.packet.C2SPong;
 import net.java.mproxy.proxy.packethandler.PacketHandler;
 import net.java.mproxy.proxy.util.CloseAndReturn;
+import net.java.mproxy.proxy.util.PacketUtils;
 import net.java.mproxy.util.logging.Logger;
 import net.lenni0451.mcstructs.text.components.StringComponent;
 import net.raphimc.netminecraft.constants.ConnectionState;
@@ -30,10 +32,7 @@ import net.raphimc.netminecraft.util.ChannelType;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
-import java.util.ArrayList;
-import java.util.Deque;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -61,7 +60,7 @@ public class ProxyConnection extends NetClient {
     private ConnectionState c2pConnectionState = ConnectionState.HANDSHAKING;
     private ConnectionState p2sConnectionState = ConnectionState.HANDSHAKING;
     private static final int MAX_SENT_PACKETS = 64;
-    private Deque<Packet> sentPackets = new LinkedList<>();
+    private LinkedList<Packet> sentPackets = new LinkedList<>();
     Object controllerLocker = new Object();
     public int syncPosState;
     public static final int SYNC_POS_SENT = 1;
@@ -187,6 +186,14 @@ public class ProxyConnection extends NetClient {
 //            Logger.raw(Integer.toUnsignedString(this.hashCode(), 16) + " send packet " + msg);
 //        }
 
+        if (msg instanceof C2SPong pong) {
+            if (dualConnection != null && dualConnection.skipPong(pong)) {
+                Logger.raw("SKIP: " + PacketUtils.toString(pong));
+            } else {
+                Logger.raw("SEND: " + PacketUtils.toString(pong));
+            }
+
+        }
         return getChannel().writeAndFlush(msg);
     }
 
@@ -350,7 +357,36 @@ public class ProxyConnection extends NetClient {
         throw CloseAndReturn.INSTANCE;
     }
 
-    public Deque getSentPackets() {
+    public C2SPong getLastSentPong() {
+        C2SPong last = null;
+        for (Packet p : this.sentPackets) {
+            if (p instanceof C2SPong) {
+                last = (C2SPong) p;
+            }
+        }
+        return last;
+    }
+
+    public List<C2SPong> getPongPacketsAfter(C2SPong after) {
+        if (after == null) {
+            return Collections.emptyList();
+        }
+        List<C2SPong> pongs = new ArrayList<>(6);
+        boolean add = false;
+        for (Packet p : this.sentPackets) {
+            if (p instanceof C2SPong pong) {
+                if (add) {
+                    pongs.add(pong);
+                }
+                if (after.id == pong.id) {
+                    add = true;
+                }
+            }
+        }
+        return pongs;
+    }
+
+    public List<Packet> getSentPackets() {
         return sentPackets;
     }
 

@@ -1,5 +1,7 @@
 package net.java.mproxy.proxy.util;
 
+import net.java.mproxy.proxy.packet.C2SPong;
+import net.java.mproxy.proxy.packet.S2CPing;
 import net.raphimc.netminecraft.packet.Packet;
 import net.raphimc.netminecraft.packet.impl.handshaking.C2SHandshakingClientIntentionPacket;
 import net.raphimc.netminecraft.packet.impl.login.C2SLoginHelloPacket;
@@ -15,8 +17,11 @@ public class PacketUtils {
                 return "C2SLoginHello " + p.name + " " + p.expiresAt + " " + p.key + " " + p.uuid;
             }
         }
-        if (packet instanceof C2SLoginKeyPacket p) {
-
+        if (packet instanceof C2SPong p) {
+            return "C2SPong " + p.id;
+        }
+        if (packet instanceof S2CPing p) {
+            return "S2CPing " + p.id;
         }
         return packet.toString();
     }
