@@ -4,6 +4,8 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageCodec;
 import io.netty.handler.codec.DecoderException;
+import net.raphimc.netminecraft.netty.codec.OptimizedPacketSizer;
+import net.raphimc.netminecraft.netty.codec.PacketCodec;
 import net.raphimc.netminecraft.netty.sizer.VarIntByteDecoder;
 import net.raphimc.netminecraft.packet.PacketTypes;
 import net.raphimc.netminecraft.packet.impl.handshaking.C2SHandshakingClientIntentionPacket;
@@ -11,17 +13,13 @@ import net.raphimc.netminecraft.packet.impl.handshaking.C2SHandshakingClientInte
 import java.util.List;
 
 public class HandshakeCodec extends ByteToMessageCodec<ByteBuf> {
-
+    public static final String HANDSHAKE_HANDLER_NAME = "handshake_codec";
     private boolean handshake = true;
 
     @Override
     protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) {
         if (handshake) {
-            in.markReaderIndex();
-            ByteBuf read = in.readBytes(in.readableBytes());
-            in.resetReaderIndex();
             final VarIntByteDecoder reader = new VarIntByteDecoder();
-
             int varintEnd = in.forEachByte(reader);
             if (varintEnd == -1) {
                 // We tried to go beyond the end of the buffer. This is probably a good sign that the
@@ -32,7 +30,7 @@ public class HandshakeCodec extends ByteToMessageCodec<ByteBuf> {
                 }
                 return;
             }
-
+            int start = in.readerIndex();
             if (reader.getResult() == VarIntByteDecoder.DecodeResult.RUN_OF_ZEROES) {
                 // this will return to the point where the next varint starts
                 in.readerIndex(varintEnd);
@@ -48,21 +46,18 @@ public class HandshakeCodec extends ByteToMessageCodec<ByteBuf> {
                 } else {
                     int minimumRead = bytesRead + readVarint;
                     if (in.isReadable(minimumRead)) {
+                        ByteBuf packetBytes = in.slice(varintEnd + 1, readVarint);
+                        PacketTypes.readVarInt(packetBytes);//packet id
+                        C2SHandshakingClientIntentionPacket packet = new C2SHandshakingClientIntentionPacket();
+                        packet.read(packetBytes, -1);
+                        boolean receiveHandshake = ctx.channel().attr(Client2ProxyHandler.CLIENT_2_PROXY_ATTRIBUTE_KEY).get().onHandshake(packet);
 
-                        in.markReaderIndex();
-                        {
-                            ByteBuf packetBytes = in.slice(varintEnd + 1, readVarint);
-                            PacketTypes.readVarInt(packetBytes);//packet id
-                            C2SHandshakingClientIntentionPacket packet = new C2SHandshakingClientIntentionPacket();
-                            packet.read(packetBytes, -1);
-                            ctx.channel().attr(Client2ProxyHandler.CLIENT_2_PROXY_ATTRIBUTE_KEY).get().onHandshake(packet);
+                        if (receiveHandshake) {
+                            out.add(in.retainedSlice(start, readVarint + varintEnd + 1));
                         }
-                        in.resetReaderIndex();
-
-                        out.add(read);
-                        in.skipBytes(in.readableBytes());
+                        in.skipBytes(minimumRead);
                         handshake = false;
-
+                        ctx.channel().pipeline().remove(HandshakeCodec.HANDSHAKE_HANDLER_NAME);
                     }
                 }
             } else if (reader.getResult() == VarIntByteDecoder.DecodeResult.TOO_BIG) {

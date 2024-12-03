@@ -17,6 +17,7 @@ import net.java.mproxy.proxy.packethandler.PacketHandler;
 import net.java.mproxy.proxy.session.DualConnection;
 import net.java.mproxy.proxy.session.ProxyConnection;
 import net.java.mproxy.proxy.util.ExceptionUtil;
+import net.java.mproxy.proxy.util.PacketUtils;
 import net.java.mproxy.proxy.util.chat.ChatSession1_19_3;
 import net.java.mproxy.util.logging.Logger;
 import net.raphimc.netminecraft.constants.ConnectionState;
@@ -78,10 +79,8 @@ public class Proxy2ServerHandler extends SimpleChannelInboundHandler<Packet> {
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-        System.out.println("SEND S " + msg);
-        if (msg instanceof ByteBuf) {
+        if (this.proxyConnection.isForwardMode() && msg instanceof ByteBuf) {
             this.proxyConnection.getC2P().writeAndFlush(msg);
-
             return;
         }
         super.channelRead(ctx, msg);
@@ -89,7 +88,9 @@ public class Proxy2ServerHandler extends SimpleChannelInboundHandler<Packet> {
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, Packet packet) throws Exception {
-
+        if (this.proxyConnection.isForwardMode()) {
+            throw new IllegalStateException("Unexpected packet in forward mode " + PacketUtils.toString(packet));
+        }
         ProxyConnection sideConnection = null;
         ProxyConnection mainConnection = this.proxyConnection;
         DualConnection dualConnection = mainConnection.dualConnection;
@@ -293,6 +294,7 @@ public class Proxy2ServerHandler extends SimpleChannelInboundHandler<Packet> {
                 if (dualConnection.isFirstSwap()) {
                     dualConnection.setFirstSwap();
                     dualConnection.swapController();
+                    System.out.println("FIRST SWAP CONTROLLER");
                 }
 
                 dualConnection.entityId = Unpooled.wrappedBuffer(packet.data).readInt();

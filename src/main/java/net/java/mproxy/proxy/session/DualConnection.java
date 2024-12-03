@@ -172,6 +172,10 @@ public class DualConnection {
         return null;
     }
 
+    public boolean isBothConnectionCreated() {
+        return this.mainConnection != null && this.sideConnection != null;
+    }
+
     public ProxyConnection getSideConnection() {
         if (sideConnection == null) {
             try {

@@ -9,6 +9,7 @@ import io.netty.util.AttributeKey;
 import net.java.mproxy.Proxy;
 import net.java.mproxy.auth.Account;
 import net.java.mproxy.proxy.PacketRegistry;
+import net.java.mproxy.proxy.client2proxy.HandshakeCodec;
 import net.java.mproxy.proxy.packet.C2SMovePlayer;
 import net.java.mproxy.proxy.packethandler.PacketHandler;
 import net.java.mproxy.proxy.util.CloseAndReturn;
@@ -67,6 +68,7 @@ public class ProxyConnection extends NetClient {
     public static final int SYNC_POS_RECEIVED = 2;
 
     public volatile boolean isPassenger;
+    private boolean isForwardMode;
 
     //    LinkedList<Packet> packets = Collections.synchronizedList(new LinkedList<>());
     public ProxyConnection(final Supplier<ChannelHandler> handlerSupplier, final Function<Supplier<ChannelHandler>, ChannelInitializer<Channel>> channelInitializerSupplier, final Channel c2p) {
@@ -372,14 +374,23 @@ public class ProxyConnection extends NetClient {
         }
     }
 
-    public void setPaththrough() {
+    public void setForwardMode() {
         try {
             removeHandlers(getC2P());
-            removeHandlers(getChannel());
-
         } catch (Exception e) {
             e.printStackTrace();
+            Logger.u_err("Set forward mode c2p", this, e.getMessage());
         }
+        try {
+            removeHandlers(getChannel());
+        } catch (Exception e) {
+            Logger.u_err("Set forward mode p2s", this, e.getMessage());
+        }
+        this.isForwardMode = true;
+    }
+
+    public boolean isForwardMode() {
+        return isForwardMode;
     }
 
     private void removeHandlers(Channel channel) {
@@ -395,6 +406,8 @@ public class ProxyConnection extends NetClient {
         channel.pipeline().remove(MCPipeline.FLOW_CONTROL_HANDLER_NAME);
         channel.pipeline().remove(MCPipeline.COMPRESSION_HANDLER_NAME);
         channel.pipeline().remove(MCPipeline.PACKET_CODEC_HANDLER_NAME);
-//        channel.pipeline().remove(MCPipeline.HANDLER_HANDLER_NAME);
+//        if(channel.pipeline().get(HandshakeCodec.HANDSHAKE_HANDLER_NAME) != null) {
+//            channel.pipeline().remove(HandshakeCodec.HANDSHAKE_HANDLER_NAME);
+//        }
     }
 }

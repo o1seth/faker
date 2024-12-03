@@ -9,7 +9,6 @@ import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.util.AttributeKey;
 import net.java.mproxy.Proxy;
 import net.java.mproxy.auth.Account;
-import net.java.mproxy.proxy.packet.C2SMovePlayer;
 import net.java.mproxy.proxy.packethandler.*;
 import net.java.mproxy.proxy.proxy2server.Proxy2ServerChannelInitializer;
 import net.java.mproxy.proxy.proxy2server.Proxy2ServerHandler;
@@ -17,10 +16,7 @@ import net.java.mproxy.proxy.session.DualConnection;
 import net.java.mproxy.proxy.session.ProxyConnection;
 import net.java.mproxy.proxy.util.*;
 import net.java.mproxy.util.logging.Logger;
-import net.raphimc.netminecraft.constants.ConnectionState;
-import net.raphimc.netminecraft.constants.IntendedState;
-import net.raphimc.netminecraft.constants.MCPackets;
-import net.raphimc.netminecraft.constants.MCVersion;
+import net.raphimc.netminecraft.constants.*;
 import net.raphimc.netminecraft.packet.Packet;
 import net.raphimc.netminecraft.packet.UnknownPacket;
 import net.raphimc.netminecraft.packet.impl.handshaking.C2SHandshakingClientIntentionPacket;
@@ -74,16 +70,32 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
 
     }
 
-    public void onHandshake(C2SHandshakingClientIntentionPacket handshakingPacket) {
+    static final boolean forwardConnect = false;
 
+    public boolean onHandshake(C2SHandshakingClientIntentionPacket handshakingPacket) {
+        if (Proxy.dualConnection != null && Proxy.dualConnection.isBothConnectionCreated()) {
+            System.out.println(PacketUtils.toString(handshakingPacket));
+            C2SHandshakingClientIntentionPacket newHandshake = new C2SHandshakingClientIntentionPacket();
+            newHandshake.intendedState = handshakingPacket.intendedState;
+            newHandshake.protocolVersion = handshakingPacket.protocolVersion;
+            InetSocketAddress connectAddress = Proxy.targetAddress;
+            newHandshake.address = connectAddress.getHostName();
+            newHandshake.port = connectAddress.getPort();
+            Logger.u_info("forward connect", this.proxyConnection, "[" + handshakingPacket.protocolVersion + "] Connecting to " + connectAddress);
+            proxyConnection.connectToServer(connectAddress).syncUninterruptibly();
+            proxyConnection.getChannel().writeAndFlush(newHandshake).syncUninterruptibly();
+            proxyConnection.setForwardMode();
+//        proxyConnection.getC2P().attr(MCPipeline.PACKET_REGISTRY_ATTRIBUTE_KEY).get().setConnectionState(handshakingPacket.intendedState.getConnectionState());
+
+            return false;
+        }
+        return true;
     }
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-
-        if (msg instanceof ByteBuf) {
+        if (this.proxyConnection.isForwardMode() && msg instanceof ByteBuf) {
             this.proxyConnection.getChannel().writeAndFlush(msg);
-
             return;
         }
         super.channelRead(ctx, msg);
@@ -91,7 +103,12 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, Packet packet) throws Exception {
-        if (this.proxyConnection.isClosed()) return;
+        if (this.proxyConnection.isClosed()) {
+            return;
+        }
+        if (this.proxyConnection.isForwardMode()) {
+            throw new IllegalStateException("Unexpected packet in forward mode " + PacketUtils.toString(packet));
+        }
         if (!(packet instanceof UnknownPacket)) {
             if (!proxyConnection.preReceivePacket(packet)) {
                 return;
@@ -108,7 +125,7 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
             if (packet instanceof C2SHandshakingClientIntentionPacket) {
                 this.handleHandshake((C2SHandshakingClientIntentionPacket) packet);
             } else {
-                throw new IllegalStateException("Unexpected packet in HANDSHAKING state");
+                throw new IllegalStateException("Unexpected packet in HANDSHAKING state " + packet);
             }
             return;
         }
@@ -168,25 +185,12 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
     }
 
     private void connect(InetSocketAddress serverAddress, int version, IntendedState intendedState, InetSocketAddress handshakeAddress, Account account) {
-//        final Supplier<ChannelHandler> handlerSupplier = Proxy2ServerHandler::new;
-//        this.proxyConnection = new ProxyConnection(handlerSupplier, Proxy2ServerChannelInitializer::new, this.proxyConnection.getC2P());
-
         this.proxyConnection.getC2P().attr(ProxyConnection.PROXY_CONNECTION_ATTRIBUTE_KEY).set(this.proxyConnection);
         this.proxyConnection.setVersion(version);
         this.proxyConnection.setClientHandshakeAddress(handshakeAddress);
         this.proxyConnection.setAccount(account);
         this.proxyConnection.setC2pConnectionState(intendedState.getConnectionState());
-//        this.proxyConnection.getPacketHandlers().add(new StatusPacketHandler(this.proxyConnection));//custom motd
-//        this.proxyConnection.getPacketHandlers().add(new OpenAuthModPacketHandler(this.proxyConnection));
-//        if (ViaProxy.getConfig().shouldSupportSimpleVoiceChat() && serverVersion.newerThan(ProtocolVersion.v1_14) && clientVersion.newerThan(ProtocolVersion.v1_14)) {
-//            this.proxyConnection.getPacketHandlers().add(new SimpleVoiceChatPacketHandler(this.proxyConnection));
-//        }
-//        if (ViaProxy.getConfig().shouldFakeAcceptResourcePacks() && serverVersion.newerThanOrEqualTo(LegacyProtocolVersion.r1_3_1tor1_3_2)) {
-//            this.proxyConnection.getPacketHandlers().add(new ResourcePackSpooferPacketHandler(this.proxyConnection));
-//        }
-//        if (version >= (MCVersion.v1_8)) {
-//            this.proxyConnection.getPacketHandlers().add(new BrandCustomPayloadPacketHandler(this.proxyConnection));
-//        }
+
         this.proxyConnection.getPacketHandlers().add(new LoginPacketHandler(this.proxyConnection));
         this.proxyConnection.getPacketHandlers().add(new MovePlayerPacketHandler(this.proxyConnection));
         this.proxyConnection.getPacketHandlers().add(new CarriedItemHandler(this.proxyConnection));
@@ -204,7 +208,7 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
 //        this.proxyConnection.getPacketHandlers().add(new ResourcePackPacketHandler(this.proxyConnection));
         this.proxyConnection.getPacketHandlers().add(new UnexpectedPacketHandler(this.proxyConnection));
         if (!this.proxyConnection.isController() && this.proxyConnection.dualConnection != null) {
-            System.out.println("CANCEL CONNECT!");
+            Logger.u_info("connect", this.proxyConnection, "cancel connect to server");
             this.proxyConnection.setP2sConnectionState(intendedState.getConnectionState());
             ChannelUtil.restoreAutoRead(this.proxyConnection.getC2P());
 

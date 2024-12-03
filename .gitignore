@@ -1,4 +1,5 @@
 .gradle
+hs_err_pid*
 build/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
@@ -7,6 +8,7 @@ account.json
 logs/*
 
 ### IntelliJ IDEA ###
+.idea/.name
 .idea/modules.xml
 .idea/jarRepositories.xml
 .idea/compiler.xml
