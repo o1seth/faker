@@ -6,6 +6,7 @@ import net.java.mproxy.proxy.packet.C2SPlayerCommand;
 import net.java.mproxy.proxy.packet.S2CSetPassengers;
 import net.java.mproxy.proxy.util.ChannelUtil;
 import net.java.mproxy.proxy.util.chat.ChatSession1_19_3;
+import net.java.mproxy.util.logging.Logger;
 import net.raphimc.netminecraft.constants.ConnectionState;
 import net.raphimc.netminecraft.constants.MCPipeline;
 import net.raphimc.netminecraft.constants.MCVersion;
@@ -13,7 +14,7 @@ import net.raphimc.netminecraft.constants.MCVersion;
 public class DualConnection {
     protected final ProxyConnection mainConnection;
     protected ProxyConnection sideConnection;
-    public final Object waiter = new Object();
+    //    public final Object waiter = new Object();
     public double prevX;
     public double prevY;
     public double prevZ;
@@ -72,11 +73,9 @@ public class DualConnection {
         return this.firstSwap;
     }
 
-    public void setFirstSwap() {
-        this.firstSwap = true;
-    }
 
     public synchronized void swapController() {
+        this.firstSwap = false;
         synchronized (controllerLocker) {
             ProxyConnection follower = this.getFollower0();
             ProxyConnection controller = this.getController0();
@@ -173,19 +172,21 @@ public class DualConnection {
     }
 
     public boolean isBothConnectionCreated() {
-        return this.mainConnection != null && this.sideConnection != null;
+        return this.sideConnection != null;
     }
 
     public ProxyConnection getSideConnection() {
-        if (sideConnection == null) {
-            try {
-                synchronized (waiter) {
-                    waiter.wait();
-                }
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-        }
+//        if (sideConnection == null) {
+//            try {
+//                Logger.raw("Wait for side...");
+//                synchronized (waiter) {
+//                    waiter.wait();
+//                }
+//                Logger.raw("Side created!");
+//            } catch (InterruptedException e) {
+//                throw new RuntimeException(e);
+//            }
+//        }
         return this.sideConnection;
     }
 

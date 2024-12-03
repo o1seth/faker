@@ -2,11 +2,13 @@ package net.java.mproxy.proxy.packethandler;
 
 import com.mojang.authlib.GameProfile;
 import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.internal.ChannelUtils;
 import net.java.mproxy.Proxy;
 import net.java.mproxy.proxy.LoginState;
 import net.java.mproxy.proxy.external_interface.AuthLibServices;
 import net.java.mproxy.proxy.external_interface.ExternalInterface;
 import net.java.mproxy.proxy.session.ProxyConnection;
+import net.java.mproxy.proxy.util.ChannelUtil;
 import net.java.mproxy.proxy.util.CloseAndReturn;
 import net.java.mproxy.util.logging.Logger;
 import net.raphimc.netminecraft.netty.crypto.AESEncryption;
@@ -76,9 +78,11 @@ public class LoginPacketHandler extends PacketHandler {
             }
             if (!Proxy.ONLINE_MODE) {
                 if (!proxyConnection.isController()) {
-                    synchronized (proxyConnection.dualConnection.waiter) {
-                        proxyConnection.dualConnection.waiter.notifyAll();
-                    }
+                    //was disabled in Client2ProxyHandler.connect
+                    ChannelUtil.restoreAutoRead(proxyConnection.getChannel());
+//                    synchronized (proxyConnection.dualConnection.waiter) {
+//                        proxyConnection.dualConnection.waiter.notifyAll();
+//                    }
                 }
             }
             return false;
@@ -126,9 +130,11 @@ public class LoginPacketHandler extends PacketHandler {
             this.proxyConnection.sendToServer(this.proxyConnection.getLoginHelloPacket(), ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
             if (Proxy.ONLINE_MODE) {
                 if (!proxyConnection.isController()) {
-                    synchronized (proxyConnection.dualConnection.waiter) {
-                        proxyConnection.dualConnection.waiter.notifyAll();
-                    }
+                    //was disabled in Client2ProxyHandler.connect
+                    ChannelUtil.restoreAutoRead(proxyConnection.getChannel());
+//                    synchronized (proxyConnection.dualConnection.waiter) {
+//                        proxyConnection.dualConnection.waiter.notifyAll();
+//                    }
                 }
             }
             return false;

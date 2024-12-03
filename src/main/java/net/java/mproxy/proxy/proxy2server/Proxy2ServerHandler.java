@@ -91,10 +91,12 @@ public class Proxy2ServerHandler extends SimpleChannelInboundHandler<Packet> {
         if (this.proxyConnection.isForwardMode()) {
             throw new IllegalStateException("Unexpected packet in forward mode " + PacketUtils.toString(packet));
         }
+//        Logger.raw("IN " + packet);
         ProxyConnection sideConnection = null;
         ProxyConnection mainConnection = this.proxyConnection;
         DualConnection dualConnection = mainConnection.dualConnection;
         if (dualConnection != null) {
+
             sideConnection = dualConnection.getSideConnection();
             if (mainConnection.isClosed() && sideConnection.isClosed()) {
                 return;
@@ -220,6 +222,7 @@ public class Proxy2ServerHandler extends SimpleChannelInboundHandler<Packet> {
         Logger.u_info("session " + Integer.toUnsignedString(sideConnection.hashCode(), 16), sideConnection, "Connected successfully! Switching to " + nextState + " state");
 
         dualConnection.disableAutoRead();
+        dualConnection.disableAutoRead();
         // restore in ConfigurationPacketHandler.java, C2SLoginAcknowledgedPacket and C2SPlayConfigurationAcknowledgedPacket
         // or here
         listeners.add(f -> {
@@ -231,7 +234,7 @@ public class Proxy2ServerHandler extends SimpleChannelInboundHandler<Packet> {
                 sideConnection.setP2sConnectionState(nextState);
 
                 dualConnection.restoreAutoRead();
-
+                dualConnection.restoreAutoRead();
             }
         });
 
@@ -292,7 +295,6 @@ public class Proxy2ServerHandler extends SimpleChannelInboundHandler<Packet> {
                     Logger.raw("\n\n\n\n\n                                                                                   NOT BOTH CONNECTION IN PLAY STATE!\n\n\n");
                 }
                 if (dualConnection.isFirstSwap()) {
-                    dualConnection.setFirstSwap();
                     dualConnection.swapController();
                     System.out.println("FIRST SWAP CONTROLLER");
                 }

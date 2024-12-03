@@ -38,6 +38,7 @@ public class ConfigurationPacketHandler extends PacketHandler {
             } else {
                 Logger.u_info("session", this.proxyConnection, " (login) Switching to CONFIGURATION state (follower)");
                 this.proxyConnection.setP2sConnectionState(ConnectionState.CONFIGURATION);
+                dualConnection.restoreAutoRead();
             }
         } else if (packet instanceof C2SConfigFinishConfigurationPacket) {
             this.proxyConnection.setC2pConnectionState(ConnectionState.PLAY);
@@ -67,6 +68,7 @@ public class ConfigurationPacketHandler extends PacketHandler {
             } else {
                 Logger.u_info("session", this.proxyConnection, "Switching to CONFIGURATION state (follower)");
                 this.proxyConnection.setP2sConnectionState(ConnectionState.CONFIGURATION);
+                dualConnection.restoreAutoRead();
             }
         }
         return true;

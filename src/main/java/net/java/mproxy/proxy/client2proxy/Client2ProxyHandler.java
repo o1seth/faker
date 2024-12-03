@@ -70,8 +70,6 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
 
     }
 
-    static final boolean forwardConnect = false;
-
     public boolean onHandshake(C2SHandshakingClientIntentionPacket handshakingPacket) {
         if (Proxy.dualConnection != null && Proxy.dualConnection.isBothConnectionCreated()) {
             System.out.println(PacketUtils.toString(handshakingPacket));
@@ -85,8 +83,6 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
             proxyConnection.connectToServer(connectAddress).syncUninterruptibly();
             proxyConnection.getChannel().writeAndFlush(newHandshake).syncUninterruptibly();
             proxyConnection.setForwardMode();
-//        proxyConnection.getC2P().attr(MCPipeline.PACKET_REGISTRY_ATTRIBUTE_KEY).get().setConnectionState(handshakingPacket.intendedState.getConnectionState());
-
             return false;
         }
         return true;
@@ -232,6 +228,12 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
 //                            }
                             this.proxyConnection.setP2sConnectionState(intendedState.getConnectionState());
                             ChannelUtil.restoreAutoRead(this.proxyConnection.getC2P());
+                            if (intendedState == IntendedState.LOGIN) {
+                                //Disable read server->proxy packets until the second client is connected.
+                                //Used to synchronize incoming packets between two connections
+                                //will be restored in LoginPacketHandler
+                                ChannelUtil.disableAutoRead(this.proxyConnection.getChannel());
+                            }
                         }
                     });
                 });
