@@ -8,6 +8,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.util.AttributeKey;
 import net.java.mproxy.Proxy;
+import net.java.mproxy.WinRedirect;
 import net.java.mproxy.auth.Account;
 import net.java.mproxy.proxy.packethandler.*;
 import net.java.mproxy.proxy.proxy2server.Proxy2ServerChannelInitializer;
@@ -26,6 +27,8 @@ import java.net.InetSocketAddress;
 import java.nio.channels.UnresolvedAddressException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.IntConsumer;
+import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
 public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
@@ -35,9 +38,16 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
         super.channelActive(ctx);
+        InetSocketAddress remote = (InetSocketAddress) ctx.channel().remoteAddress();
+        InetSocketAddress[] addresses = new InetSocketAddress[2];
+        if (!WinRedirect.redirectGetRealAddresses(Proxy.forward_redirect, remote.getAddress().getHostAddress(), remote.getPort(), addresses)) {
+            WinRedirect.redirectGetRealAddresses(Proxy.redirect, remote.getAddress().getHostAddress(), remote.getPort(), addresses);
+        }
+        System.out.println("NEW CONNECTION " + remote.getAddress());
         final Supplier<ChannelHandler> handlerSupplier = Proxy2ServerHandler::new;
-        this.proxyConnection = new ProxyConnection(handlerSupplier, Proxy2ServerChannelInitializer::new, ctx.channel());
+        this.proxyConnection = new ProxyConnection(handlerSupplier, Proxy2ServerChannelInitializer::new, ctx.channel(), addresses[0], addresses[1]);
         ctx.channel().attr(CLIENT_2_PROXY_ATTRIBUTE_KEY).set(this);
+
 //        this.proxyConnection = new DummyProxyConnection(ctx.channel());
         Proxy.getConnectedClients().add(ctx.channel());
     }
@@ -70,18 +80,43 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
 
     }
 
+    static IntConsumer addSkipPort = port -> {
+        if (Proxy.redirect != 0) {
+            WinRedirect.redirectAddSkipPort(Proxy.redirect, port);
+            System.out.println("SKIP PORT ADDED " + port);
+        }
+
+    };
+    static ChannelFutureListener removeSkipPort = f -> {
+        if (Proxy.redirect != 0) {
+            InetSocketAddress localAddress = (InetSocketAddress) f.channel().localAddress();
+            int port = localAddress.getPort();
+            WinRedirect.redirectRemoveSkipPort(Proxy.redirect, port);
+            System.out.println("SKIP PORT REMOVED " + port);
+        }
+    };
+
     public boolean onHandshake(C2SHandshakingClientIntentionPacket handshakingPacket) {
         if (Proxy.dualConnection != null && Proxy.dualConnection.isBothConnectionCreated()) {
             System.out.println(PacketUtils.toString(handshakingPacket));
-            C2SHandshakingClientIntentionPacket newHandshake = new C2SHandshakingClientIntentionPacket();
-            newHandshake.intendedState = handshakingPacket.intendedState;
-            newHandshake.protocolVersion = handshakingPacket.protocolVersion;
-            InetSocketAddress connectAddress = Proxy.targetAddress;
-            newHandshake.address = connectAddress.getHostName();
-            newHandshake.port = connectAddress.getPort();
+            C2SHandshakingClientIntentionPacket handshake;
+            InetSocketAddress connectAddress;
+            if (this.proxyConnection.isRedirected()) {
+                handshake = handshakingPacket;
+                connectAddress = this.proxyConnection.getRealDstAddress();
+            } else {
+                handshake = new C2SHandshakingClientIntentionPacket();
+                handshake.intendedState = handshakingPacket.intendedState;
+                handshake.protocolVersion = handshakingPacket.protocolVersion;
+                connectAddress = Proxy.targetAddress;
+                handshake.address = connectAddress.getHostName();
+                handshake.port = connectAddress.getPort();
+            }
+
             Logger.u_info("forward connect", this.proxyConnection, "[" + handshakingPacket.protocolVersion + "] Connecting to " + connectAddress);
-            proxyConnection.connectToServer(connectAddress).syncUninterruptibly();
-            proxyConnection.getChannel().writeAndFlush(newHandshake).syncUninterruptibly();
+            proxyConnection.connectToServer(connectAddress, addSkipPort).addListener(removeSkipPort).syncUninterruptibly();
+
+            proxyConnection.getChannel().writeAndFlush(handshake).syncUninterruptibly();
             proxyConnection.setForwardMode();
             return false;
         }
@@ -156,31 +191,35 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
             }
             this.proxyConnection.dualConnection = Proxy.dualConnection;
         }
-        final int version = packet.protocolVersion;
+
 
         if (packet.intendedState == null) {
             throw CloseAndReturn.INSTANCE;
         }
+//        final int version = packet.protocolVersion;
+//        this.proxyConnection.setVersion(version);
+//        this.proxyConnection.setC2pConnectionState(packet.intendedState.getConnectionState());
 
-        this.proxyConnection.setVersion(version);
-        this.proxyConnection.setC2pConnectionState(packet.intendedState.getConnectionState());
-
-        InetSocketAddress serverAddress = Proxy.targetAddress;
-
-        if (packet.intendedState.getConnectionState() == ConnectionState.LOGIN && TransferDataHolder.hasTempRedirect(this.proxyConnection.getC2P())) {
-            serverAddress = TransferDataHolder.removeTempRedirect(this.proxyConnection.getC2P());
-            System.out.println("tempRedirect  " + serverAddress);
+        InetSocketAddress serverAddress;
+        if (this.proxyConnection.isRedirected()) {
+            serverAddress = this.proxyConnection.getRealDstAddress();
+        } else {
+            serverAddress = Proxy.targetAddress;
+            if (packet.intendedState.getConnectionState() == ConnectionState.LOGIN && TransferDataHolder.hasTempRedirect(this.proxyConnection.getC2P())) {
+                serverAddress = TransferDataHolder.removeTempRedirect(this.proxyConnection.getC2P());
+                System.out.println("tempRedirect  " + serverAddress);
+            }
         }
-
-        InetSocketAddress handshakeAddress = new InetSocketAddress(packet.address, packet.port);
-
         ChannelUtil.disableAutoRead(this.proxyConnection.getC2P());
-
         System.out.println("Connect...");
-        this.connect(serverAddress, version, packet.intendedState, handshakeAddress, Proxy.account);
+        this.connect(serverAddress, packet, Proxy.account);
     }
 
-    private void connect(InetSocketAddress serverAddress, int version, IntendedState intendedState, InetSocketAddress handshakeAddress, Account account) {
+    private void connect(InetSocketAddress serverAddress, C2SHandshakingClientIntentionPacket handshakePacket, Account account) {
+        final int version = handshakePacket.protocolVersion;
+        final IntendedState intendedState = handshakePacket.intendedState;
+        final InetSocketAddress handshakeAddress = new InetSocketAddress(handshakePacket.address, handshakePacket.port);
+
         this.proxyConnection.getC2P().attr(ProxyConnection.PROXY_CONNECTION_ATTRIBUTE_KEY).set(this.proxyConnection);
         this.proxyConnection.setVersion(version);
         this.proxyConnection.setClientHandshakeAddress(handshakeAddress);
@@ -201,53 +240,62 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
         if (version >= MCVersion.v1_19_3) {
             this.proxyConnection.getPacketHandlers().add(new ChatSignaturePacketHandler(this.proxyConnection));
         }
-//        this.proxyConnection.getPacketHandlers().add(new ResourcePackPacketHandler(this.proxyConnection));
+
         this.proxyConnection.getPacketHandlers().add(new UnexpectedPacketHandler(this.proxyConnection));
         if (!this.proxyConnection.isController() && this.proxyConnection.dualConnection != null) {
             Logger.u_info("connect", this.proxyConnection, "cancel connect to server");
             this.proxyConnection.setP2sConnectionState(intendedState.getConnectionState());
             ChannelUtil.restoreAutoRead(this.proxyConnection.getC2P());
 
+            WinRedirect.redirectPause(Proxy.forward_redirect);
+            WinRedirect.redirectPause(Proxy.redirect);
             return;
         }
         Logger.u_info("connect", this.proxyConnection, "[" + version + "] Connecting to " + serverAddress);
+        final C2SHandshakingClientIntentionPacket newHandshakePacket;
+        if (this.proxyConnection.isRedirected()) {
+            newHandshakePacket = handshakePacket;
+        } else {
+            final String address = serverAddress.getHostString();
+            final int port = serverAddress.getPort();
+            newHandshakePacket = new C2SHandshakingClientIntentionPacket(version, address, port, intendedState);
+        }
 
+        this.proxyConnection.connectToServer(serverAddress, addSkipPort).addListeners(removeSkipPort,
+                (ThrowingChannelFutureListener) f -> {
+                    if (f.isSuccess()) {
+                        f.channel().eventLoop().submit(() -> { // Reschedule so the packets get sent after the channel is fully initialized and active
 
-        this.proxyConnection.connectToServer(serverAddress).addListeners((ThrowingChannelFutureListener) f -> {
-            if (f.isSuccess()) {
-                f.channel().eventLoop().submit(() -> { // Reschedule so the packets get sent after the channel is fully initialized and active
-                    final String address = serverAddress.getHostString();
-                    final int port = serverAddress.getPort();
-                    final C2SHandshakingClientIntentionPacket newHandshakePacket = new C2SHandshakingClientIntentionPacket(version, address, port, intendedState);
-                    this.proxyConnection.sendToServer(newHandshakePacket, ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE, (ChannelFutureListener) f2 -> {
-                        if (f2.isSuccess()) {
+                            this.proxyConnection.sendToServer(newHandshakePacket, ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE, f2 -> {
+                                if (f2.isSuccess()) {
 //                            final UserConnection userConnection = this.proxyConnection.getUserConnection();
 //                            if (userConnection.has(CookieStorage.class) && TransferDataHolder.hasCookieStorage(this.proxyConnection.getC2P())) {
 //                                userConnection.get(CookieStorage.class).cookies().putAll(TransferDataHolder.removeCookieStorage(this.proxyConnection.getC2P()).cookies());
 //                                System.out.println("COOKIES?");
 //                            }
-                            this.proxyConnection.setP2sConnectionState(intendedState.getConnectionState());
-                            ChannelUtil.restoreAutoRead(this.proxyConnection.getC2P());
-                            if (intendedState == IntendedState.LOGIN) {
-                                //Disable read server->proxy packets until the second client is connected.
-                                //Used to synchronize incoming packets between two connections
-                                //will be restored in LoginPacketHandler
-                                ChannelUtil.disableAutoRead(this.proxyConnection.getChannel());
-                            }
+                                    this.proxyConnection.setP2sConnectionState(intendedState.getConnectionState());
+                                    ChannelUtil.restoreAutoRead(this.proxyConnection.getC2P());
+                                    if (intendedState == IntendedState.LOGIN) {
+                                        //Disable read server->proxy packets until the second client is connected.
+                                        //Used to synchronize incoming packets between two connections
+                                        //will be restored in LoginPacketHandler
+                                        ChannelUtil.disableAutoRead(this.proxyConnection.getChannel());
+                                    }
+                                }
+                            });
+                        });
+                    }
+                },
+                (ThrowingChannelFutureListener) f -> {
+                    if (!f.isSuccess()) {
+                        if (f.cause() instanceof ConnectException || f.cause() instanceof UnresolvedAddressException) {
+                            this.proxyConnection.kickClient("Could not connect to the backend server!");
+                        } else {
+                            Logger.LOGGER.error("Error while connecting to the backend server", f.cause());
+                            this.proxyConnection.kickClient("An error occurred while connecting to the backend server: " + f.cause().getMessage() + "\nCheck the console for more information.");
                         }
-                    });
+                    }
                 });
-            }
-        }, (ThrowingChannelFutureListener) f -> {
-            if (!f.isSuccess()) {
-                if (f.cause() instanceof ConnectException || f.cause() instanceof UnresolvedAddressException) {
-                    this.proxyConnection.kickClient("§cCould not connect to the backend server!");
-                } else {
-                    Logger.LOGGER.error("Error while connecting to the backend server", f.cause());
-                    this.proxyConnection.kickClient("§cAn error occurred while connecting to the backend server: " + f.cause().getMessage() + "\n§cCheck the console for more information.");
-                }
-            }
-        });
     }
 
 }

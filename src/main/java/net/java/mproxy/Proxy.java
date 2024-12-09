@@ -70,8 +70,20 @@ public class Proxy {
         return null;
     }
 
-    public static void main(String[] args) throws Throwable {
+    public static long forward_redirect;
+    public static long redirect;
 
+    public static void main(String[] args) throws Throwable {
+        forward_redirect = WinRedirect.redirectStart(25565, 25565, null, null, WinRedirect.Layer.NETWORK_FORWARD);
+        if (forward_redirect == 0) {
+            System.out.println(WinRedirect.getError());
+            return;
+        }
+        redirect = WinRedirect.redirectStart(25565, 25565, null, null, WinRedirect.Layer.NETWORK);
+        if (redirect == 0) {
+            System.out.println(WinRedirect.getError());
+            return;
+        }
         Logger.setup();
         account = auth();
         loadNetty();

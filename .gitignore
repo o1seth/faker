@@ -44,3 +44,13 @@ bin/
 
 ### Mac OS ###
 .DS_Store
+
+### Visual Studio ###
+*sln
+*vcxproj.user
+*.vs/
+*.sln
+native/Release/
+native/x64/
+native/Release/*
+native/x64/*

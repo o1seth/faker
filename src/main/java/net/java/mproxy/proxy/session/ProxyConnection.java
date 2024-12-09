@@ -9,13 +9,10 @@ import io.netty.util.AttributeKey;
 import net.java.mproxy.Proxy;
 import net.java.mproxy.auth.Account;
 import net.java.mproxy.proxy.PacketRegistry;
-import net.java.mproxy.proxy.client2proxy.HandshakeCodec;
 import net.java.mproxy.proxy.packet.C2SAbstractPong;
 import net.java.mproxy.proxy.packet.C2SMovePlayer;
-import net.java.mproxy.proxy.packet.C2SPong;
 import net.java.mproxy.proxy.packethandler.PacketHandler;
 import net.java.mproxy.proxy.util.CloseAndReturn;
-import net.java.mproxy.proxy.util.PacketUtils;
 import net.java.mproxy.util.logging.Logger;
 import net.lenni0451.mcstructs.text.components.StringComponent;
 import net.raphimc.netminecraft.constants.ConnectionState;
@@ -31,11 +28,11 @@ import net.raphimc.netminecraft.packet.impl.play.S2CPlayDisconnectPacket;
 import net.raphimc.netminecraft.packet.impl.status.S2CStatusResponsePacket;
 import net.raphimc.netminecraft.util.ChannelType;
 
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.*;
 import java.util.function.Function;
+import java.util.function.IntConsumer;
 import java.util.function.Supplier;
 
 public class ProxyConnection extends NetClient {
@@ -63,6 +60,7 @@ public class ProxyConnection extends NetClient {
     private ConnectionState p2sConnectionState = ConnectionState.HANDSHAKING;
     private static final int MAX_SENT_PACKETS = 64;
     private final LinkedList<Packet> sentPackets = new LinkedList<>();
+    
     Object controllerLocker = new Object();
     public int syncPosState;
     public static final int SYNC_POS_SENT = 1;
@@ -70,13 +68,36 @@ public class ProxyConnection extends NetClient {
 
     public volatile boolean isPassenger;
     private boolean isForwardMode;
+    private final boolean isRedirected;
+    private final InetSocketAddress realSrcAddress;
+    private final InetSocketAddress realDstAddress;
 
-    //    LinkedList<Packet> packets = Collections.synchronizedList(new LinkedList<>());
     public ProxyConnection(final Supplier<ChannelHandler> handlerSupplier, final Function<Supplier<ChannelHandler>, ChannelInitializer<Channel>> channelInitializerSupplier, final Channel c2p) {
-        super(handlerSupplier, channelInitializerSupplier);
-        this.c2p = c2p;
+        this(handlerSupplier, channelInitializerSupplier, c2p, null, null);
     }
 
+    public ProxyConnection(final Supplier<ChannelHandler> handlerSupplier, final Function<Supplier<ChannelHandler>, ChannelInitializer<Channel>> channelInitializerSupplier, final Channel c2p, InetSocketAddress src, InetSocketAddress dst) {
+        super(handlerSupplier, channelInitializerSupplier);
+        this.c2p = c2p;
+        if (src != null && dst != null) {
+            this.isRedirected = true;
+            this.realSrcAddress = src;
+            this.realDstAddress = dst;
+        } else {
+            this.isRedirected = false;
+            if (c2p.localAddress() instanceof InetSocketAddress) {
+                this.realSrcAddress = (InetSocketAddress) c2p.localAddress();
+            } else {
+                this.realSrcAddress = null;
+            }
+            if (c2p.remoteAddress() instanceof InetSocketAddress) {
+                this.realDstAddress = (InetSocketAddress) c2p.remoteAddress();
+            } else {
+                this.realDstAddress = null;
+            }
+
+        }
+    }
 
     public static ProxyConnection fromChannel(final Channel channel) {
         return channel.attr(PROXY_CONNECTION_ATTRIBUTE_KEY).get();
@@ -96,14 +117,19 @@ public class ProxyConnection extends NetClient {
         super.initialize(channelType, bootstrap);
     }
 
-    public ChannelFuture connectToServer(final SocketAddress serverAddress) {
+    public ChannelFuture connectToServer(final SocketAddress serverAddress, IntConsumer onBind) {
         this.serverAddress = serverAddress;
         if (this.channelFuture == null) {
             this.initialize(ChannelType.get(serverAddress), new Bootstrap());
         }
+
         this.getChannel().bind(new InetSocketAddress(0)).syncUninterruptibly();
         InetSocketAddress localAddress = (InetSocketAddress) this.getChannel().localAddress();
         int port = localAddress.getPort();
+        if (onBind != null) {
+            onBind.accept(port);
+        }
+
         return this.getChannel().connect(serverAddress);
     }
 
@@ -350,7 +376,7 @@ public class ProxyConnection extends NetClient {
 
         final ChannelFuture future;
         if (this.c2pConnectionState == ConnectionState.STATUS) {
-            future = this.c2p.writeAndFlush(new S2CStatusResponsePacket("{\"players\":{\"max\":0,\"online\":0},\"description\":" + new JsonPrimitive(message) + ",\"version\":{\"protocol\":-1,\"name\":\"ViaProxy\"}}"));
+            future = this.c2p.writeAndFlush(new S2CStatusResponsePacket("{\"players\":{\"max\":0,\"online\":0},\"description\":" + new JsonPrimitive(message) + ",\"version\":{\"protocol\":-1,\"name\":\"Proxy\"}}"));
         } else if (this.c2pConnectionState == ConnectionState.LOGIN) {
             future = this.c2p.writeAndFlush(new S2CLoginDisconnectPacket(new StringComponent(message)));
         } else if (this.c2pConnectionState == ConnectionState.CONFIGURATION) {
@@ -433,6 +459,18 @@ public class ProxyConnection extends NetClient {
             Logger.u_err("Set forward mode p2s", this, e.getMessage());
         }
         this.isForwardMode = true;
+    }
+
+    public InetSocketAddress getRealDstAddress() {
+        return realDstAddress;
+    }
+
+    public InetSocketAddress getRealSrcAddress() {
+        return realSrcAddress;
+    }
+
+    public boolean isRedirected() {
+        return isRedirected;
     }
 
     public boolean isForwardMode() {
