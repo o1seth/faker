@@ -292,7 +292,7 @@ public class Proxy2ServerHandler extends SimpleChannelInboundHandler<Packet> {
         if (this.proxyConnection.getC2pConnectionState() == ConnectionState.PLAY) {
             DualConnection dualConnection = this.proxyConnection.dualConnection;
             if (packet.packetId == this.joinGamePacketId) {
-                if (!dualConnection.isBothPlayState()) {
+                if (!dualConnection.isBothPlayState() && dualConnection.hasDualConnections()) {
                     Logger.raw("\n\n\n\n\n                                                                                   NOT BOTH CONNECTION IN PLAY STATE!\n\n\n");
                 }
                 if (dualConnection.isFirstSwap()) {

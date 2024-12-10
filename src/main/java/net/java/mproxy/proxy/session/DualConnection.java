@@ -235,6 +235,16 @@ public class DualConnection {
         return this.sideConnection;
     }
 
+    public boolean hasDualConnections() {
+        if (mainConnection.isClosed()) {
+            return false;
+        }
+        if (sideConnection == null || sideConnection.isClosed()) {
+            return false;
+        }
+        return true;
+    }
+
     public boolean isBothPlayState() {
         if (mainConnection.isClosed()) {
             return false;

@@ -20,10 +20,10 @@ import net.java.mproxy.proxy.session.ProxyConnection;
 import net.java.mproxy.auth.Account;
 import net.java.mproxy.auth.MicrosoftAccount;
 import net.java.mproxy.util.logging.Logger;
+import net.raphimc.netminecraft.util.MinecraftServerAddress;
 
 import java.io.File;
 import java.io.FileReader;
-import java.net.Inet4Address;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -31,7 +31,8 @@ import java.util.ArrayList;
 
 public class Proxy {
     public static final InetSocketAddress proxyAddress = new InetSocketAddress("0.0.0.0", 25565);
-    public static InetSocketAddress targetAddress = null;
+    private static InetSocketAddress targetHandshakeAddress = setTargetHandshakeAddress((String) null);
+    private static InetSocketAddress targetAddress;
     public static final int compressionThreshold = 256;
     public static final int connectTimeout = 8000;
     public static Account account;
@@ -77,14 +78,20 @@ public class Proxy {
     public static long forward_redirect;
     public static long redirect;
 
-    public static void main(String[] args) throws Throwable {
+    private static int getTargetPort() {
+        if (targetAddress == null) {
+            return 25565;
+        }
+        return targetAddress.getPort();
+    }
 
-        forward_redirect = WinRedirect.redirectStart(25565, 25565, null, null, WinRedirect.Layer.NETWORK_FORWARD);
+    public static void main(String[] args) throws Throwable {
+        forward_redirect = WinRedirect.redirectStart(getTargetPort(), proxyAddress.getPort(), null, null, WinRedirect.Layer.NETWORK_FORWARD);
         if (forward_redirect == 0) {
             System.out.println(WinRedirect.getError());
             return;
         }
-        redirect = WinRedirect.redirectStart(25565, 25565, null, null, WinRedirect.Layer.NETWORK);
+        redirect = WinRedirect.redirectStart(getTargetPort(), proxyAddress.getPort(), null, null, WinRedirect.Layer.NETWORK);
         if (redirect == 0) {
             System.out.println(WinRedirect.getError());
             return;
@@ -138,4 +145,33 @@ public class Proxy {
     }
 
     public static DualConnection dualConnection;
+
+    public static InetSocketAddress getTargetHandshakeAddress() {
+        return targetHandshakeAddress;
+    }
+
+    public static InetSocketAddress getTargetAddress() {
+        return targetAddress;
+    }
+
+    public static InetSocketAddress setTargetHandshakeAddress(String host) {
+        return setTargetHandshakeAddress(host, 25565);
+    }
+
+    public static InetSocketAddress setTargetHandshakeAddress(String host, int port) {
+        if (host == null) {
+            return setTargetHandshakeAddress((InetSocketAddress) null);
+        }
+        return setTargetHandshakeAddress(new InetSocketAddress(host, port));
+    }
+
+    public static InetSocketAddress setTargetHandshakeAddress(InetSocketAddress targetHandshakeAddress) {
+        Proxy.targetHandshakeAddress = targetHandshakeAddress;
+        if (targetHandshakeAddress == null) {
+            targetAddress = null;
+        } else {
+            targetAddress = MinecraftServerAddress.ofResolved(targetHandshakeAddress.getHostName(), targetHandshakeAddress.getPort());
+        }
+        return targetHandshakeAddress;
+    }
 }

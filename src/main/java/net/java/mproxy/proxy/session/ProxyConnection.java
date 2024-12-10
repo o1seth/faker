@@ -46,12 +46,12 @@ public class ProxyConnection extends NetClient {
 
     private int version;
     volatile boolean isController = true;
-//    public InetSocketAddress connectAddress;
+    //    public InetSocketAddress connectAddress;
     public DualConnection dualConnection;
     private InetSocketAddress clientHandshakeAddress;
     private GameProfile gameProfile;
     private C2SLoginHelloPacket loginHelloPacket;
-    private C2SHandshakingClientIntentionPacket handshakePacket;
+//    private C2SHandshakingClientIntentionPacket handshakePacket;
 
 
     private Account account;
@@ -60,7 +60,7 @@ public class ProxyConnection extends NetClient {
     private ConnectionState p2sConnectionState = ConnectionState.HANDSHAKING;
     private static final int MAX_SENT_PACKETS = 64;
     private final LinkedList<Packet> sentPackets = new LinkedList<>();
-    
+
     Object controllerLocker = new Object();
     public int syncPosState;
     public static final int SYNC_POS_SENT = 1;
@@ -150,13 +150,13 @@ public class ProxyConnection extends NetClient {
         return null;
     }
 
-    public void setHandshakePacket(C2SHandshakingClientIntentionPacket handshakePacket) {
-        this.handshakePacket = handshakePacket;
-    }
-
-    public C2SHandshakingClientIntentionPacket getHandshakePacket() {
-        return handshakePacket;
-    }
+//    public void setHandshakePacket(C2SHandshakingClientIntentionPacket handshakePacket) {
+//        this.handshakePacket = handshakePacket;
+//    }
+//
+//    public C2SHandshakingClientIntentionPacket getHandshakePacket() {
+//        return handshakePacket;
+//    }
 
 
     public SocketAddress getServerAddress() {
