@@ -13,6 +13,7 @@ import net.java.mproxy.proxy.packet.C2SAbstractPong;
 import net.java.mproxy.proxy.packet.C2SMovePlayer;
 import net.java.mproxy.proxy.packethandler.PacketHandler;
 import net.java.mproxy.proxy.util.CloseAndReturn;
+import net.java.mproxy.proxy.util.PacketUtils;
 import net.java.mproxy.util.logging.Logger;
 import net.lenni0451.mcstructs.text.components.StringComponent;
 import net.raphimc.netminecraft.constants.ConnectionState;
@@ -220,14 +221,14 @@ public class ProxyConnection extends NetClient {
 //            Logger.raw(Integer.toUnsignedString(this.hashCode(), 16) + " send packet " + msg);
 //        }
 
-//        if (msg instanceof C2SAbstractPong pong) {
-//            if (dualConnection != null && dualConnection.skipPong(pong)) {
-//                Logger.raw("SKIP: " + PacketUtils.toString(pong));
-//            } else {
+        if (msg instanceof C2SAbstractPong pong) {
+            if (dualConnection != null && dualConnection.skipPong(pong)) {
+                Logger.raw("SKIP: " + PacketUtils.toString(pong));
+            } else {
 //                Logger.raw("SEND: " + PacketUtils.toString(pong));
-//            }
-//
-//        }
+            }
+
+        }
         return getChannel().writeAndFlush(msg);
     }
 
