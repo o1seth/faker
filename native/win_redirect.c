@@ -808,7 +808,7 @@ DWORD WINAPI redirect_in(LPVOID lpParam)
 						info("[C] Skip win nat (%s): %s ack %lu != %lu, seq %lu != %lu", get_tcp_flag(tcp_header), msg, prevAck, tcp_header->AckNum, prevSeq, tcp_header->SeqNum);
 					}
 				}
-				info("Skip nat ok");
+				//info("Skip nat ok");
 				continue;
 			}
 			else {

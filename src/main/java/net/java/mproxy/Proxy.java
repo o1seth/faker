@@ -23,13 +23,15 @@ import net.java.mproxy.util.logging.Logger;
 
 import java.io.File;
 import java.io.FileReader;
+import java.net.Inet4Address;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.ArrayList;
 
 public class Proxy {
     public static final InetSocketAddress proxyAddress = new InetSocketAddress("0.0.0.0", 25565);
-    public static final InetSocketAddress targetAddress = new InetSocketAddress("eu.loyisa.cn", 25565);
+    public static InetSocketAddress targetAddress = null;
     public static final int compressionThreshold = 256;
     public static final int connectTimeout = 8000;
     public static Account account;
@@ -41,6 +43,8 @@ public class Proxy {
     public static ChannelGroup getConnectedClients() {
         return CLIENT_CHANNELS;
     }
+
+    public static ArrayList<InetSocketAddress> connectedAddresses = new ArrayList<>();
 
     private static MicrosoftAccount auth() {
         HttpClient httpClient = MinecraftAuth.createHttpClient();
@@ -74,6 +78,7 @@ public class Proxy {
     public static long redirect;
 
     public static void main(String[] args) throws Throwable {
+
         forward_redirect = WinRedirect.redirectStart(25565, 25565, null, null, WinRedirect.Layer.NETWORK_FORWARD);
         if (forward_redirect == 0) {
             System.out.println(WinRedirect.getError());

@@ -24,6 +24,7 @@ public class WinRedirect {
         filter.append(" and (tcp.DstPort == ");
         filter.append(targetPort);
         filter.append(")");
+        filter.append(" and (ip.DstAddr < 127.0.0.1 or ip.DstAddr > 127.255.255.254)");//we don't want to redirect localhost connections
         if (srcAddresses != null) {
             if (srcAddresses.length > 0) {
                 filter.append(" and (");

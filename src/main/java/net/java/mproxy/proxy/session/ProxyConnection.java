@@ -46,7 +46,7 @@ public class ProxyConnection extends NetClient {
 
     private int version;
     volatile boolean isController = true;
-    public InetSocketAddress connectAddress;
+//    public InetSocketAddress connectAddress;
     public DualConnection dualConnection;
     private InetSocketAddress clientHandshakeAddress;
     private GameProfile gameProfile;

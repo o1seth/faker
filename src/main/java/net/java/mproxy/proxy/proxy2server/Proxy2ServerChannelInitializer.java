@@ -11,7 +11,6 @@ import java.util.function.Supplier;
 
 public class Proxy2ServerChannelInitializer extends MinecraftChannelInitializer {
 
-
     public Proxy2ServerChannelInitializer(final Supplier<ChannelHandler> handlerSupplier) {
         super(handlerSupplier);
     }
@@ -21,8 +20,5 @@ public class Proxy2ServerChannelInitializer extends MinecraftChannelInitializer 
         super.initChannel(channel);
         ProxyConnection proxyConnection = ProxyConnection.fromChannel(channel);
         channel.attr(MCPipeline.PACKET_REGISTRY_ATTRIBUTE_KEY).set(new PacketRegistry(true, proxyConnection.getVersion()));
-
     }
-
-
 }

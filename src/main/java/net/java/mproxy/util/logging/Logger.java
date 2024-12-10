@@ -30,6 +30,10 @@ public class Logger {
         out.flush();
     }
 
+    public static void u_info(final String title, final String msg) {
+        u_log(Level.INFO, title, null, msg);
+    }
+
     public static void u_info(final String title, final ProxyConnection proxyConnection, final String msg) {
         u_log(Level.INFO, title, proxyConnection, msg);
     }
@@ -43,6 +47,10 @@ public class Logger {
     }
 
     public static void u_log(final Level level, final String title, final ProxyConnection proxyConnection, final String msg) {
+        if (proxyConnection == null) {
+            u_log(level, title, null, null, msg);
+            return;
+        }
         final SocketAddress address = proxyConnection.getC2P().remoteAddress();
         final GameProfile gameProfile = proxyConnection.getGameProfile();
         u_log(level, title, address, gameProfile, msg);

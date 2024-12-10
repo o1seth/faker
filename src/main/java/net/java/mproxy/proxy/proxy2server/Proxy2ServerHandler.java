@@ -34,6 +34,7 @@ import net.raphimc.netminecraft.packet.impl.play.S2CPlayStartConfigurationPacket
 
 import javax.crypto.SecretKey;
 import java.math.BigInteger;
+import java.net.InetSocketAddress;
 import java.security.PublicKey;
 import java.util.ArrayList;
 import java.util.List;
@@ -58,6 +59,10 @@ public class Proxy2ServerHandler extends SimpleChannelInboundHandler<Packet> {
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         super.channelInactive(ctx);
+        if (ctx.channel().remoteAddress() instanceof InetSocketAddress isa) {
+            Proxy.connectedAddresses.remove(isa);
+        }
+
         Logger.u_info("disconnect", this.proxyConnection, "Connection closed");
         if (proxyConnection.dualConnection != null) {
             ProxyConnection sideConnection = proxyConnection.dualConnection.getSideConnection();
@@ -168,7 +173,7 @@ public class Proxy2ServerHandler extends SimpleChannelInboundHandler<Packet> {
                 sideConnection.sendToClient(packet);
             }
         } else {
-            System.out.println("SEND TO CLIENT 0");
+            System.out.println("SEND TO CLIENT 0 ");
             mainConnection.sendToClient(packet, listeners);
         }
     }
