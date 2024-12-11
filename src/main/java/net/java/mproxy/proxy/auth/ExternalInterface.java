@@ -1,4 +1,4 @@
-package net.java.mproxy.proxy.external_interface;
+package net.java.mproxy.proxy.auth;
 
 import net.java.mproxy.Proxy;
 import net.java.mproxy.proxy.session.DualConnection;

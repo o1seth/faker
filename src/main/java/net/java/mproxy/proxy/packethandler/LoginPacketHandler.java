@@ -2,11 +2,10 @@ package net.java.mproxy.proxy.packethandler;
 
 import com.mojang.authlib.GameProfile;
 import io.netty.channel.ChannelFutureListener;
-import io.netty.channel.internal.ChannelUtils;
 import net.java.mproxy.Proxy;
 import net.java.mproxy.proxy.LoginState;
-import net.java.mproxy.proxy.external_interface.AuthLibServices;
-import net.java.mproxy.proxy.external_interface.ExternalInterface;
+import net.java.mproxy.proxy.auth.AuthLibServices;
+import net.java.mproxy.proxy.auth.ExternalInterface;
 import net.java.mproxy.proxy.session.ProxyConnection;
 import net.java.mproxy.proxy.util.ChannelUtil;
 import net.java.mproxy.proxy.util.CloseAndReturn;

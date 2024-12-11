@@ -1,4 +1,4 @@
-package net.java.mproxy.proxy.external_interface;
+package net.java.mproxy.proxy.auth;
 
 import com.mojang.authlib.GameProfileRepository;
 import com.mojang.authlib.minecraft.MinecraftSessionService;

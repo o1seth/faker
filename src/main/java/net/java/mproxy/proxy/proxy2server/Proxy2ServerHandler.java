@@ -8,7 +8,7 @@ import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import net.java.mproxy.Proxy;
-import net.java.mproxy.proxy.external_interface.ExternalInterface;
+import net.java.mproxy.proxy.auth.ExternalInterface;
 import net.java.mproxy.proxy.packet.*;
 import net.java.mproxy.proxy.packethandler.PacketHandler;
 import net.java.mproxy.proxy.session.DualConnection;
