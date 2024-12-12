@@ -1,6 +1,10 @@
 package net.java.mproxy.ui;
 
 import com.formdev.flatlaf.FlatDarkLaf;
+import net.java.mproxy.ui.tab.AccountsTab;
+import net.java.mproxy.ui.tab.AdvancedTab;
+import net.java.mproxy.ui.tab.GeneralTab;
+import net.java.mproxy.ui.tab.UISettingsTab;
 import net.java.mproxy.util.logging.Logger;
 
 import javax.swing.*;
@@ -16,8 +20,6 @@ public class Window extends JFrame {
     public static final int BODY_BLOCK_PADDING = 10;
 //    public final LambdaManager eventManager = LambdaManager.threadSafe(new LambdaMetaFactoryGenerator(JavaBypass.TRUSTED_LOOKUP));
 
-    public static final int BORDER_PADDING = 10;
-    public static final int BODY_BLOCK_PADDING = 10;
 
     public final JTabbedPane contentPane = new JTabbedPane();
     private final List<UITab> tabs = new ArrayList<>();

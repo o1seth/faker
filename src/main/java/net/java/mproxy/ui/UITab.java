@@ -4,13 +4,13 @@ import javax.swing.*;
 
 public abstract class UITab {
 
-    protected final Window viaProxyWindow;
+    protected final Window window;
     private final String name;
     protected final JPanel contentPane;
 
     public UITab(final Window viaProxyWindow, final String name) {
-        this.viaProxyWindow = viaProxyWindow;
-        this.name = name;
+        this.window = viaProxyWindow;
+        this.name = I18n.get("tab." + name + ".name");
         this.contentPane = new JPanel();
 
         this.contentPane.setLayout(null);

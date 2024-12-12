@@ -1,9 +1,15 @@
 package net.java.mproxy.ui.tab;
 
+import net.java.mproxy.Proxy;
 import net.java.mproxy.auth.Account;
 import net.java.mproxy.auth.MicrosoftAccount;
+import net.java.mproxy.ui.GBC;
+import net.java.mproxy.ui.I18n;
 import net.java.mproxy.ui.UITab;
 import net.java.mproxy.ui.Window;
+import net.java.mproxy.util.TFunction;
+import net.raphimc.minecraftauth.MinecraftAuth;
+import net.raphimc.minecraftauth.step.msa.StepMsaDeviceCode;
 
 import javax.swing.*;
 import java.awt.*;
@@ -11,6 +17,8 @@ import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 
 import static net.java.mproxy.ui.Window.BORDER_PADDING;
 import static net.java.mproxy.ui.Window.BODY_BLOCK_PADDING;
@@ -19,7 +27,7 @@ public class AccountsTab extends UITab {
 
     private JList<Account> accountsList;
     private JButton addMicrosoftAccountButton;
-    private JButton addBedrockAccountButton;
+
 
     private AddAccountPopup addAccountPopup;
     private Thread addThread;
@@ -40,7 +48,7 @@ public class AccountsTab extends UITab {
         }
         {
             JScrollPane scrollPane = new JScrollPane();
-            DefaultListModel<MicrosoftAccount> model = new DefaultListModel<>();
+            DefaultListModel<Account> model = new DefaultListModel<>();
             this.accountsList = new JList<>(model);
             this.accountsList.addMouseListener(new MouseAdapter() {
                 public void mousePressed(MouseEvent e) {
@@ -72,7 +80,7 @@ public class AccountsTab extends UITab {
                 public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
                     DefaultListCellRenderer component = (DefaultListCellRenderer) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
                     Account account = (Account) value;
-                    if (ViaProxy.getConfig().getAccount() == account) {
+                    if (Proxy.account == account) {
                         component.setText("<html><span style=\"color:rgb(0, 180, 0)\"><b>" + account.getDisplayString() + "</b></span></html>");
                     } else {
                         component.setText(account.getDisplayString());
@@ -96,9 +104,9 @@ public class AccountsTab extends UITab {
                     int index = this.accountsList.getSelectedIndex();
                     if (index != -1) {
                         Account removed = model.remove(index);
-                        ViaProxy.getSaveManager().accountsSave.removeAccount(removed);
-                        ViaProxy.getSaveManager().save();
-                        if (ViaProxy.getConfig().getAccount() == removed) {
+                        Proxy.getSaveManager().removeAccount(removed);
+                        Proxy.getSaveManager().save();
+                        if (Proxy.account == removed) {
                             if (model.isEmpty()) this.markSelected(-1);
                             else this.markSelected(0);
                         }
@@ -129,19 +137,8 @@ public class AccountsTab extends UITab {
         }
         {
             final JPanel addButtons = new JPanel();
-            addButtons.setLayout(new GridLayout(1, 3, BORDER_PADDING, 0));
-            {
-                JButton addOfflineAccountButton = new JButton(I18n.get("tab.accounts.add_offline.label"));
-                addOfflineAccountButton.addActionListener(event -> {
-                    String username = JOptionPane.showInputDialog(this.viaProxyWindow, I18n.get("tab.accounts.add_offline.enter_username"), I18n.get("tab.accounts.add.title"), JOptionPane.PLAIN_MESSAGE);
-                    if (username != null && !username.trim().isEmpty()) {
-                        Account account = ViaProxy.getSaveManager().accountsSave.addAccount(username);
-                        ViaProxy.getSaveManager().save();
-                        this.addAccount(account);
-                    }
-                });
-                addButtons.add(addOfflineAccountButton);
-            }
+            addButtons.setLayout(new GridLayout(1, 1, BORDER_PADDING, 0));
+
             {
                 this.addMicrosoftAccountButton = new JButton(I18n.get("tab.accounts.add_microsoft.label"));
                 this.addMicrosoftAccountButton.addActionListener(event -> {
@@ -152,16 +149,7 @@ public class AccountsTab extends UITab {
                 });
                 addButtons.add(this.addMicrosoftAccountButton);
             }
-            {
-                this.addBedrockAccountButton = new JButton(I18n.get("tab.accounts.add_bedrock.label"));
-                this.addBedrockAccountButton.addActionListener(event -> {
-                    this.addBedrockAccountButton.setEnabled(false);
-                    this.handleLogin(msaDeviceCodeConsumer -> {
-                        return new BedrockAccount(BedrockAccount.DEVICE_CODE_LOGIN.getFromInput(MinecraftAuth.createHttpClient(), new StepMsaDeviceCode.MsaDeviceCodeCallback(msaDeviceCodeConsumer)));
-                    });
-                });
-                addButtons.add(this.addBedrockAccountButton);
-            }
+
 
             JPanel border = new JPanel();
             border.setLayout(new GridBagLayout());
@@ -174,7 +162,7 @@ public class AccountsTab extends UITab {
         contentPane.setLayout(new BorderLayout());
         contentPane.add(body, BorderLayout.CENTER);
 
-        ViaProxy.getSaveManager().accountsSave.getAccounts().forEach(this::addAccount);
+        Proxy.getSaveManager().getAccounts().forEach(this::addAccount);
         DefaultListModel<Account> model = (DefaultListModel<Account>) this.accountsList.getModel();
         if (!model.isEmpty()) this.markSelected(0);
     }
@@ -187,7 +175,6 @@ public class AccountsTab extends UITab {
             this.addAccountPopup = null;
         }
         this.addMicrosoftAccountButton.setEnabled(true);
-        this.addBedrockAccountButton.setEnabled(true);
     }
 
     private void addAccount(final Account account) {
@@ -197,11 +184,11 @@ public class AccountsTab extends UITab {
 
     public void markSelected(final int index) {
         if (index < 0 || index >= this.accountsList.getModel().getSize()) {
-            ViaProxy.getConfig().setAccount(null);
+            Proxy.setAccount(null);
             return;
         }
 
-        ViaProxy.getConfig().setAccount(ViaProxy.getSaveManager().accountsSave.getAccounts().get(index));
+        Proxy.setAccount(Proxy.getSaveManager().getAccounts().get(index));
         this.accountsList.repaint();
     }
 
@@ -214,9 +201,9 @@ public class AccountsTab extends UITab {
         model.add(index - 1, account);
         this.accountsList.setSelectedIndex(index - 1);
 
-        ViaProxy.getSaveManager().accountsSave.removeAccount(account);
-        ViaProxy.getSaveManager().accountsSave.addAccount(index - 1, account);
-        ViaProxy.getSaveManager().save();
+        Proxy.getSaveManager().removeAccount(account);
+        Proxy.getSaveManager().addAccount(index - 1, account);
+        Proxy.getSaveManager().save();
     }
 
     private void moveDown(final int index) {
@@ -228,35 +215,35 @@ public class AccountsTab extends UITab {
         model.add(index + 1, account);
         this.accountsList.setSelectedIndex(index + 1);
 
-        ViaProxy.getSaveManager().accountsSave.removeAccount(account);
-        ViaProxy.getSaveManager().accountsSave.addAccount(index + 1, account);
-        ViaProxy.getSaveManager().save();
+        Proxy.getSaveManager().removeAccount(account);
+        Proxy.getSaveManager().addAccount(index + 1, account);
+        Proxy.getSaveManager().save();
     }
 
     private void handleLogin(final TFunction<Consumer<StepMsaDeviceCode.MsaDeviceCode>, Account> requestHandler) {
         this.addThread = new Thread(() -> {
             try {
-                final Account account = requestHandler.apply(msaDeviceCode -> SwingUtilities.invokeLater(() -> new AddAccountPopup(this.viaProxyWindow, msaDeviceCode, popup -> this.addAccountPopup = popup, () -> {
+                final Account account = requestHandler.apply(msaDeviceCode -> SwingUtilities.invokeLater(() -> new AddAccountPopup(this.window, msaDeviceCode, popup -> this.addAccountPopup = popup, () -> {
                     this.closePopup();
                     this.addThread.interrupt();
                 })));
                 SwingUtilities.invokeLater(() -> {
                     this.closePopup();
-                    ViaProxy.getSaveManager().accountsSave.addAccount(account);
-                    ViaProxy.getSaveManager().save();
+                    Proxy.getSaveManager().addAccount(account);
+                    Proxy.getSaveManager().save();
                     this.addAccount(account);
-                    ViaProxyWindow.showInfo(I18n.get("tab.accounts.add.success", account.getName()));
+                    Window.showInfo(I18n.get("tab.accounts.add.success", account.getName()));
                 });
             } catch (InterruptedException ignored) {
             } catch (TimeoutException e) {
                 SwingUtilities.invokeLater(() -> {
                     this.closePopup();
-                    ViaProxyWindow.showError(I18n.get("tab.accounts.add.timeout", "60"));
+                    Window.showError(I18n.get("tab.accounts.add.timeout", "60"));
                 });
             } catch (Throwable t) {
                 SwingUtilities.invokeLater(() -> {
                     this.closePopup();
-                    ViaProxyWindow.showException(t);
+                    Window.showException(t);
                 });
             }
         }, "Add Account Thread");
