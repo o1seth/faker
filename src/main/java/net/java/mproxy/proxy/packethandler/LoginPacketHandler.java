@@ -61,7 +61,7 @@ public class LoginPacketHandler extends PacketHandler {
                 proxyConnection.setGameProfile(new GameProfile(null, loginHelloPacket.name));
             }
 
-            if (Proxy.ONLINE_MODE) {
+            if (Proxy.getConfig().onlineMode.get()) {
                 if (proxyConnection.isController()) {
                     Logger.raw("controller cancel and send response S2CLoginHelloPacket\n");
                 } else {
@@ -75,7 +75,7 @@ public class LoginPacketHandler extends PacketHandler {
                 ExternalInterface.fillPlayerData(this.proxyConnection);
                 this.proxyConnection.sendToServer(this.proxyConnection.getLoginHelloPacket(), ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
             }
-            if (!Proxy.ONLINE_MODE) {
+            if (!Proxy.getConfig().onlineMode.get()) {
                 if (!proxyConnection.isController()) {
                     //was disabled in Client2ProxyHandler.connect
                     ChannelUtil.restoreAutoRead(proxyConnection.getChannel());
@@ -127,7 +127,7 @@ public class LoginPacketHandler extends PacketHandler {
 
 
             this.proxyConnection.sendToServer(this.proxyConnection.getLoginHelloPacket(), ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
-            if (Proxy.ONLINE_MODE) {
+            if (Proxy.getConfig().onlineMode.get()) {
                 if (!proxyConnection.isController()) {
                     //was disabled in Client2ProxyHandler.connect
                     ChannelUtil.restoreAutoRead(proxyConnection.getChannel());

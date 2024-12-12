@@ -1,5 +1,6 @@
 package net.java.mproxy.ui.tab;
 
+import net.java.mproxy.Proxy;
 import net.java.mproxy.ui.GBC;
 import net.java.mproxy.ui.I18n;
 import net.java.mproxy.ui.UITab;
@@ -16,7 +17,8 @@ public class AdvancedTab extends UITab {
 
     JCheckBox proxyOnlineMode;
     JCheckBox chatSigning;
-
+    JCheckBox tracerouteFix;
+    JCheckBox mdnsDisable;
 
     public AdvancedTab(final Window frame) {
         super(frame, "advanced");
@@ -41,15 +43,29 @@ public class AdvancedTab extends UITab {
         {
             this.proxyOnlineMode = new JCheckBox(I18n.get("tab.advanced.proxy_online_mode.label"));
             this.proxyOnlineMode.setToolTipText(I18n.get("tab.advanced.proxy_online_mode.tooltip"));
-//            this.proxyOnlineMode.setSelected(Proxy.getConfig().isProxyOnlineMode());
+            this.proxyOnlineMode.setSelected(Proxy.getConfig().onlineMode.get());
             checkboxes.add(this.proxyOnlineMode);
         }
 
         {
             this.chatSigning = new JCheckBox(I18n.get("tab.advanced.chat_signing.label"));
             this.chatSigning.setToolTipText(I18n.get("tab.advanced.chat_signing.tooltip"));
-//            this.chatSigning.setSelected(Proxy.getConfig().shouldSignChat());
+            this.proxyOnlineMode.setSelected(Proxy.getConfig().signChat.get());
             checkboxes.add(this.chatSigning);
+        }
+
+        {
+            this.tracerouteFix = new JCheckBox(I18n.get("tab.advanced.traceroute_fix.label"));
+            this.tracerouteFix.setToolTipText(I18n.get("tab.advanced.traceroute_fix.tooltip"));
+            this.tracerouteFix.setSelected(Proxy.getConfig().tracerouteFix.get());
+            checkboxes.add(this.tracerouteFix);
+        }
+
+        {
+            this.mdnsDisable = new JCheckBox(I18n.get("tab.advanced.mdns_disable.label"));
+            this.mdnsDisable.setToolTipText(I18n.get("tab.advanced.mdns_disable.tooltip"));
+            this.mdnsDisable.setSelected(Proxy.getConfig().mdnsDisable.get());
+            checkboxes.add(this.mdnsDisable);
         }
 
         GBC.create(body).grid(0, gridy++).insets(BODY_BLOCK_PADDING, BORDER_PADDING, 0, BODY_BLOCK_PADDING).fill(GBC.BOTH).weight(1, 1).add(checkboxes);
@@ -58,17 +74,11 @@ public class AdvancedTab extends UITab {
     }
 
 
-//    @EventHandler(events = UICloseEvent.class)
-//    void applyGuiState() {
-//        ViaProxy.getSaveManager().uiSave.put("bind_address", this.bindAddress.getText());
-//        ViaProxy.getSaveManager().uiSave.put("proxy", this.proxy.getText());
-//        ViaProxy.getConfig().setProxyOnlineMode(this.proxyOnlineMode.isSelected());
-//        ViaProxy.getSaveManager().uiSave.put("legacy_skin_loading", String.valueOf(this.legacySkinLoading.isSelected()));
-//        ViaProxy.getConfig().setChatSigning(this.chatSigning.isSelected());
-//        ViaProxy.getConfig().setIgnoreProtocolTranslationErrors(this.ignorePacketTranslationErrors.isSelected());
-//        ViaProxy.getConfig().setAllowBetaPinging(this.allowBetaPinging.isSelected());
-//        ViaProxy.getConfig().setSimpleVoiceChatSupport(this.simpleVoiceChatSupport.isSelected());
-//        ViaProxy.getConfig().setFakeAcceptResourcePacks(this.fakeAcceptResourcePacks.isSelected());
-//    }
+    //    @EventHandler(events = UICloseEvent.class)
+    void applyGuiState() {
+
+        Proxy.getConfig().onlineMode.set(this.proxyOnlineMode.isSelected());
+        Proxy.getConfig().signChat.set(this.chatSigning.isSelected());
+    }
 
 }

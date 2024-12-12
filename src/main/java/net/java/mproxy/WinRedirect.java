@@ -13,6 +13,9 @@ public class WinRedirect {
         System.load(dll.getAbsolutePath());
     }
 
+    public static boolean isSupported() {
+        return true;
+    }
 
     public enum Layer {
         NETWORK, NETWORK_FORWARD

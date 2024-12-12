@@ -2,13 +2,13 @@ package net.java.mproxy;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.group.ChannelGroup;
 import io.netty.channel.group.DefaultChannelGroup;
 import io.netty.util.ResourceLeakDetector;
 import io.netty.util.concurrent.GlobalEventExecutor;
-import net.java.mproxy.save.SaveManager;
+import net.java.mproxy.save.Config;
+import net.java.mproxy.save.AccountManager;
 import net.java.mproxy.ui.Window;
 import net.lenni0451.commons.httpclient.HttpClient;
 import net.raphimc.minecraftauth.MinecraftAuth;
@@ -23,29 +23,28 @@ import net.java.mproxy.proxy.session.ProxyConnection;
 import net.java.mproxy.auth.Account;
 import net.java.mproxy.auth.MicrosoftAccount;
 import net.java.mproxy.util.logging.Logger;
-import net.raphimc.netminecraft.util.ChannelType;
-import net.raphimc.netminecraft.util.MinecraftServerAddress;
 
 import java.io.File;
 import java.io.FileReader;
 import java.net.BindException;
 import java.net.InetSocketAddress;
-import java.net.SocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
 
 public class Proxy {
-    public static InetSocketAddress proxyAddress = new InetSocketAddress("0.0.0.0", 445);
-    private static InetSocketAddress targetHandshakeAddress = setTargetHandshakeAddress((String) null);
-    private static InetSocketAddress targetAddress;
+    public static InetSocketAddress proxyAddress = new InetSocketAddress("127.0.0.1", 25565);
+    //    private static InetSocketAddress targetHandshakeAddress = setTargetHandshakeAddress((String) null);
+//    private static InetSocketAddress targetAddress;
     public static final int compressionThreshold = 256;
     public static final int connectTimeout = 8000;
+    public static DualConnection dualConnection;
 
-
-    public static Account account;
-    public static final boolean SIGN_CHAT = true;
-    public static final boolean ONLINE_MODE = true; // also encrypt client -> proxy connection
+    private static Config config;
+    private static AccountManager accountManager;
+    private static Account account;
+    //        public static final boolean SIGN_CHAT = true;
+//    public static final boolean ONLINE_MODE = true; // also encrypt client -> proxy connection
     private static NetServer currentProxyServer;
     private static ChannelGroup CLIENT_CHANNELS;
 
@@ -86,20 +85,17 @@ public class Proxy {
     public static long forward_redirect;
     public static long redirect;
 
-    private static int getTargetPort() {
-        if (targetAddress == null) {
-            return 25565;
-        }
-        return targetAddress.getPort();
-    }
 
     public static void main(String[] args) throws Throwable {
 
         Logger.setup();
-        account = auth();
+
         loadNetty();
+        config = new Config(new File("faker_config.json"));
+        accountManager = new AccountManager(new File("faker_accounts.json"));
         Window window = new Window();
-        startProxy();
+//        account = auth();
+//        startProxy();
     }
 
 
@@ -109,45 +105,21 @@ public class Proxy {
         }
         try {
             Logger.LOGGER.info("Starting proxy server");
-            currentProxyServer = new NetServer(Client2ProxyHandler::new, Client2ProxyChannelInitializer::new) {
-                @Override
-                public void bind(SocketAddress address, boolean blocking) {
-                    if (this.channelFuture == null) {
-                        this.initialize(ChannelType.get(address), new ServerBootstrap());
-                    }
-                    System.out.println("1");
-                    this.getChannel().bind(address).syncUninterruptibly();
-                    System.out.println("2 "+getChannel());
-                    if (blocking) {
-                        this.getChannel().closeFuture().syncUninterruptibly();
-                    }
-                    System.out.println("3");
-                }
-            };
-            Logger.LOGGER.info("Binding proxy server to " + proxyAddress);
+            currentProxyServer = new NetServer(Client2ProxyHandler::new, Client2ProxyChannelInitializer::new);
+
             try {
-                currentProxyServer.bind(proxyAddress);
+                currentProxyServer.bind(proxyAddress, false);
             } catch (Exception ex) {
+                Logger.LOGGER.info("Failed bind proxy server to " + proxyAddress);
+                //noinspection ConstantConditions
                 if (ex instanceof BindException) {
-                    System.out.println("TRY");
-                    currentProxyServer.bind(new InetSocketAddress(proxyAddress.getAddress(), 0));
-                    System.out.println("TRY");
+                    currentProxyServer.bind(new InetSocketAddress(proxyAddress.getAddress(), 0), false);
                     proxyAddress = (InetSocketAddress) currentProxyServer.getChannel().localAddress();
                 }
             }
-
-            System.out.println("HERE? " + proxyAddress);
-            forward_redirect = WinRedirect.redirectStart(getTargetPort(), proxyAddress.getPort(), null, null, WinRedirect.Layer.NETWORK_FORWARD);
-            if (forward_redirect == 0) {
-                System.out.println(WinRedirect.getError());
-                return;
-            }
-            redirect = WinRedirect.redirectStart(getTargetPort(), proxyAddress.getPort(), null, null, WinRedirect.Layer.NETWORK);
-            if (redirect == 0) {
-                System.out.println(WinRedirect.getError());
-                return;
-            }
-
+            Logger.LOGGER.info("Bind proxy server to " + proxyAddress);
+            startRedirect();
+//            currentProxyServer.getChannel().closeFuture().syncUninterruptibly();
         } catch (Throwable e) {
             currentProxyServer = null;
             throw e;
@@ -157,7 +129,7 @@ public class Proxy {
     public static void stopProxy() {
         if (currentProxyServer != null) {
             Logger.LOGGER.info("Stopping proxy server");
-
+            stopRedirect();
 
             currentProxyServer.getChannel().close();
             currentProxyServer = null;
@@ -180,41 +152,26 @@ public class Proxy {
         CLIENT_CHANNELS = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
     }
 
-    public static DualConnection dualConnection;
 
     public static InetSocketAddress getTargetHandshakeAddress() {
-        return targetHandshakeAddress;
+        return config.getTargetHandshakeAddress();
     }
 
     public static InetSocketAddress getTargetAddress() {
-        return targetAddress;
+        return config.getTargetAddress();
     }
 
-    public static InetSocketAddress setTargetHandshakeAddress(String host) {
-        return setTargetHandshakeAddress(host, 25565);
-    }
-
-    public static InetSocketAddress setTargetHandshakeAddress(String host, int port) {
-        if (host == null) {
-            return setTargetHandshakeAddress((InetSocketAddress) null);
+    private static int getTargetPort() {
+        InetSocketAddress targetAddress = getTargetAddress();
+        if (targetAddress == null) {
+            return 25565;
         }
-        return setTargetHandshakeAddress(new InetSocketAddress(host, port));
+        return targetAddress.getPort();
     }
 
-    public static InetSocketAddress setTargetHandshakeAddress(InetSocketAddress targetHandshakeAddress) {
-        Proxy.targetHandshakeAddress = targetHandshakeAddress;
-        if (targetHandshakeAddress == null) {
-            targetAddress = null;
-        } else {
-            targetAddress = MinecraftServerAddress.ofResolved(targetHandshakeAddress.getHostName(), targetHandshakeAddress.getPort());
-        }
-        return targetHandshakeAddress;
-    }
 
-    private static SaveManager saveManager = new SaveManager();
-
-    public static SaveManager getSaveManager() {
-        return saveManager;
+    public static AccountManager getAccountManager() {
+        return accountManager;
     }
 
     public static Account getAccount() {
@@ -223,5 +180,63 @@ public class Proxy {
 
     public static void setAccount(Account account) {
         Proxy.account = account;
+    }
+
+    public static Config getConfig() {
+        return config;
+    }
+
+    public static void suspendRedirect() {
+        if (!WinRedirect.isSupported()) {
+            return;
+        }
+        if (forward_redirect != 0) {
+            WinRedirect.redirectPause(forward_redirect);
+        }
+        if (redirect != 0) {
+            WinRedirect.redirectPause(redirect);
+        }
+    }
+
+    public static void resumeRedirect() {
+        if (!WinRedirect.isSupported()) {
+            return;
+        }
+        if (forward_redirect != 0) {
+            WinRedirect.redirectResume(forward_redirect);
+        }
+        if (redirect != 0) {
+            WinRedirect.redirectResume(redirect);
+        }
+    }
+
+    private static void stopRedirect() {
+        if (!WinRedirect.isSupported()) {
+            return;
+        }
+        if (forward_redirect != 0) {
+            WinRedirect.redirectStop(forward_redirect);
+            forward_redirect = 0;
+        }
+        if (redirect != 0) {
+            WinRedirect.redirectStop(redirect);
+            redirect = 0;
+        }
+    }
+
+    private static void startRedirect() {
+        if (!WinRedirect.isSupported()) {
+            return;
+        }
+        forward_redirect = WinRedirect.redirectStart(getTargetPort(), proxyAddress.getPort(), null, null, WinRedirect.Layer.NETWORK_FORWARD);
+        if (forward_redirect == 0) {
+            currentProxyServer.getChannel().close();
+            throw new RuntimeException(WinRedirect.getError());
+        }
+        redirect = WinRedirect.redirectStart(getTargetPort(), proxyAddress.getPort(), null, null, WinRedirect.Layer.NETWORK);
+        if (redirect == 0) {
+            currentProxyServer.getChannel().close();
+            throw new RuntimeException(WinRedirect.getError());
+        }
     }
 }

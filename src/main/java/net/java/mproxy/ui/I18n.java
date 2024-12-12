@@ -40,7 +40,7 @@ public class I18n {
                 .sorted(Comparator.comparing(e -> e.getValue().getProperty("language.name")))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (oldValue, newValue) -> newValue, LinkedHashMap::new));
 
-        currentLocale = Proxy.getSaveManager().get("locale");
+        currentLocale = Proxy.getConfig().locale.get();
         if (currentLocale == null || !LOCALES.containsKey(currentLocale)) {
             final String systemLocale = Locale.getDefault().getLanguage() + '_' + Locale.getDefault().getCountry();
             if (LOCALES.containsKey(systemLocale)) {
@@ -92,13 +92,9 @@ public class I18n {
     }
 
     public static void setLocale(final String locale) {
-        if (Proxy.getSaveManager() == null) {
-            throw new IllegalStateException("ViaProxy is not yet initialized");
-        }
-
         currentLocale = locale;
-        Proxy.getSaveManager().put("locale", locale);
-        Proxy.getSaveManager().save();
+        Proxy.getConfig().locale.set(locale);
+        Proxy.getConfig().save();
     }
 
     public static Collection<String> getAvailableLocales() {

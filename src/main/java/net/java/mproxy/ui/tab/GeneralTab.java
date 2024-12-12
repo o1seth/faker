@@ -1,14 +1,18 @@
 package net.java.mproxy.ui.tab;
 
 import net.java.mproxy.Proxy;
+import net.java.mproxy.WinRedirect;
 import net.java.mproxy.ui.GBC;
 import net.java.mproxy.ui.I18n;
 import net.java.mproxy.ui.UITab;
 import net.java.mproxy.ui.Window;
 import net.java.mproxy.ui.elements.LinkLabel;
+import net.java.mproxy.util.logging.Logger;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 
 import static net.java.mproxy.ui.Window.BODY_BLOCK_PADDING;
 import static net.java.mproxy.ui.Window.BORDER_PADDING;
@@ -68,11 +72,9 @@ public class GeneralTab extends UITab {
 
             this.serverAddress = new JTextField();
             this.serverAddress.setToolTipText(I18n.get("tab.general.server_address.tooltip"));
-            Proxy.getSaveManager().loadTextField("server_address", this.serverAddress);
+            this.serverAddress.setText(Proxy.getConfig().getServerAddress());
             GBC.create(body).grid(0, gridy++).weightx(1).insets(0, BORDER_PADDING, 0, BORDER_PADDING).fill(GBC.HORIZONTAL).add(this.serverAddress);
         }
-
-
         parent.add(body, BorderLayout.CENTER);
     }
 
@@ -87,16 +89,29 @@ public class GeneralTab extends UITab {
                 this.stop();
             }
         });
-
-        this.pauseButton = new JButton(I18n.get("tab.general.pause.suspend"));
-        this.pauseButton.addActionListener(event -> {
-
-        });
-        this.pauseButton.setEnabled(false);
+        if (WinRedirect.isSupported()) {
+            this.pauseButton = new JButton(I18n.get("tab.general.pause.suspend"));
+            this.pauseButton.setToolTipText(I18n.get("tab.general.pause.suspend.tooltip"));
+            this.pauseButton.addActionListener(event -> {
+                if (this.pauseButton.getText().equalsIgnoreCase(I18n.get("tab.general.pause.suspend"))) {
+                    Proxy.suspendRedirect();
+                    this.pauseButton.setText(I18n.get("tab.general.pause.resume"));
+                    this.pauseButton.setToolTipText(I18n.get("tab.general.pause.resume.tooltip"));
+                } else if (this.pauseButton.getText().equalsIgnoreCase(I18n.get("tab.general.pause.resume"))) {
+                    Proxy.resumeRedirect();
+                    this.pauseButton.setText(I18n.get("tab.general.pause.suspend"));
+                    this.pauseButton.setToolTipText(I18n.get("tab.general.pause.suspend.tooltip"));
+                }
+            });
+            this.pauseButton.setEnabled(false);
+        }
         JPanel footer = new JPanel();
         footer.setLayout(new GridLayout(1, 2, BORDER_PADDING, 0));
         footer.add(this.startButton);
-        footer.add(this.pauseButton);
+        if (this.pauseButton != null) {
+            footer.add(this.pauseButton);
+        }
+
         JPanel padding = new JPanel();
         padding.setLayout(new GridBagLayout());
         GBC.create(padding).grid(0, 0).weightx(1).insets(0, BORDER_PADDING, BORDER_PADDING, BORDER_PADDING).fill(GBC.HORIZONTAL).add(footer);
@@ -126,7 +141,7 @@ public class GeneralTab extends UITab {
     }
 
     private void start() {
-        this.pauseButton.setEnabled(true);
+
 //        if (Proxy.getSaveManager().uiSave.get("notice.ban_warning") == null) {
 //            Proxy.getSaveManager().uiSave.put("notice.ban_warning", "true");
 //            Proxy.getSaveManager().save();
@@ -139,74 +154,91 @@ public class GeneralTab extends UITab {
         this.startButton.setEnabled(false);
         this.startButton.setText(I18n.get("tab.general.state.starting"));
 
-//        new Thread(() -> {
-//            final String serverAddress = this.serverAddress.getText().trim();
+        new Thread(() -> {
+            final String serverAddress = this.serverAddress.getText().trim();
 //            final String bindAddress = this.window.advancedTab.bindAddress.getText().trim();
 //            final String proxyUrl = this.window.advancedTab.proxy.getText().trim();
-//
-//            try {
-//                try {
-//
-//                    try {
-//                        Proxy.getConfig().setTargetAddress(AddressUtil.parse(serverAddress, serverVersion));
-//                    } catch (Throwable t) {
-//                        throw new IllegalArgumentException(I18n.get("tab.general.error.invalid_server_address"));
-//                    }
-//                    if (Proxy.getAccount() == null) {
-//                        this.window.accountsTab.markSelected(0);
-//                    }
-//
-//
-//                    try {
-//                        Proxy.getConfig().setBindAddress(AddressUtil.parse(bindAddress, null));
-//                    } catch (Throwable t) {
-//                        throw new IllegalArgumentException(I18n.get("tab.general.error.invalid_bind_address"));
-//                    }
-//
-//                    this.applyGuiState();
-//                    this.window.advancedTab.applyGuiState();
-//                    Proxy.getConfig().save();
-//                    Proxy.getSaveManager().save();
-//                } catch (Throwable t) {
-//                    SwingUtilities.invokeLater(() -> window.showError(t.getMessage()));
-//                    throw t;
-//                }
-//
-//                try {
-//                    Proxy.startProxy();
-//                } catch (Throwable e) {
-//                    SwingUtilities.invokeLater(() -> window.showError(I18n.get("tab.general.error.failed_to_start")));
-//                    throw e;
-//                }
-//
-//                SwingUtilities.invokeLater(() -> {
-//                    this.updateStateLabel();
-//                    this.stateButton.setEnabled(true);
-//                    this.stateButton.setText(I18n.get("tab.general.state.stop"));
-//                });
-//            } catch (Throwable e) {
-//                Logger.LOGGER.error("Error while starting Proxy", e);
-//                SwingUtilities.invokeLater(() -> {
-//                    this.setComponentsEnabled(true);
-//                    this.stateButton.setEnabled(true);
-//                    this.stateButton.setText(I18n.get("tab.general.state.start"));
+
+            try {
+                try {
+
+                    try {
+                        Proxy.getConfig().setServerAddress(serverAddress);
+                    } catch (Throwable t) {
+                        throw new IllegalArgumentException(I18n.get("tab.general.error.invalid_server_address"));
+                    }
+                    if (Proxy.getAccount() == null) {
+                        this.window.accountsTab.markSelected(0);
+                    }
+
+
+                    this.applyGuiState();
+                    this.window.advancedTab.applyGuiState();
+                    Proxy.getConfig().save();
+//                    Proxy.getAccountManager().save();
+                } catch (Throwable t) {
+                    SwingUtilities.invokeLater(() -> window.showError(t.getMessage()));
+                    throw t;
+                }
+
+                try {
+                    Proxy.startProxy();
+                } catch (Throwable e) {
+                    SwingUtilities.invokeLater(() -> window.showError(I18n.get("tab.general.error.failed_to_start")));
+                    throw e;
+                }
+
+                SwingUtilities.invokeLater(() -> {
+                    this.updateStateLabel();
+                    if (this.pauseButton != null) {
+                        this.pauseButton.setEnabled(true);
+                        this.pauseButton.setText(I18n.get("tab.general.pause.suspend"));
+                    }
+                    this.startButton.setEnabled(true);
+                    this.startButton.setText(I18n.get("tab.general.state.stop"));
+                });
+            } catch (Throwable e) {
+                Logger.LOGGER.error("Error while starting Proxy", e);
+                SwingUtilities.invokeLater(() -> {
+                    this.setComponentsEnabled(true);
+                    if (this.pauseButton != null) {
+                        this.pauseButton.setEnabled(false);
+                        this.pauseButton.setText(I18n.get("tab.general.pause.suspend"));
+                    }
+                    this.startButton.setEnabled(true);
+                    this.startButton.setText(I18n.get("tab.general.state.start"));
 //                    this.stateLabel.setVisible(false);
-//                });
-//            }
-//        }).start();
+                });
+            }
+        }).start();
     }
 
     private void stop() {
+        this.startButton.setEnabled(false);
+        this.pauseButton.setEnabled(false);
         Proxy.stopProxy();
 
-//        this.stateLabel.setVisible(false);
-        this.startButton.setText(I18n.get("tab.general.state.start"));
-        this.setComponentsEnabled(true);
+        int delay = 800;
+        Timer timer = new Timer(delay, new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+//                this.stateLabel.setVisible(false);
+                GeneralTab.this.startButton.setEnabled(true);
+                GeneralTab.this.startButton.setText(I18n.get("tab.general.state.start"));
+                GeneralTab.this.setComponentsEnabled(true);
+                if (GeneralTab.this.pauseButton != null) {
+                    GeneralTab.this.pauseButton.setEnabled(false);
+                    GeneralTab.this.pauseButton.setText(I18n.get("tab.general.pause.suspend"));
+                }
+            }
+        });
+        timer.setRepeats(false);
+        timer.start();
     }
 
     //    @EventHandler(events = UICloseEvent.class)
     void applyGuiState() {
-        Proxy.getSaveManager().put("server_address", this.serverAddress.getText());
+        Proxy.getConfig().setServerAddress(this.serverAddress.getText());
     }
 
 }

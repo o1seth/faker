@@ -313,7 +313,7 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
         this.proxyConnection.setClientHandshakeAddress(new InetSocketAddress(packet.address, packet.port));
         ChannelUtil.disableAutoRead(this.proxyConnection.getC2P());
         System.out.println("Connect...");
-        this.connect(connectAddress, handshakeAddress, packet, Proxy.account);
+        this.connect(connectAddress, handshakeAddress, packet, Proxy.getAccount());
     }
 
     private void connect(InetSocketAddress connectAddress, InetSocketAddress handshakeAddress, C2SHandshakingClientIntentionPacket clientHandshake, Account account) {

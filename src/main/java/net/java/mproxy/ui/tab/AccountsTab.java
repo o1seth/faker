@@ -80,7 +80,7 @@ public class AccountsTab extends UITab {
                 public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
                     DefaultListCellRenderer component = (DefaultListCellRenderer) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
                     Account account = (Account) value;
-                    if (Proxy.account == account) {
+                    if (Proxy.getAccount() == account) {
                         component.setText("<html><span style=\"color:rgb(0, 180, 0)\"><b>" + account.getDisplayString() + "</b></span></html>");
                     } else {
                         component.setText(account.getDisplayString());
@@ -104,9 +104,9 @@ public class AccountsTab extends UITab {
                     int index = this.accountsList.getSelectedIndex();
                     if (index != -1) {
                         Account removed = model.remove(index);
-                        Proxy.getSaveManager().removeAccount(removed);
-                        Proxy.getSaveManager().save();
-                        if (Proxy.account == removed) {
+                        Proxy.getAccountManager().removeAccount(removed);
+                        Proxy.getAccountManager().save();
+                        if (Proxy.getAccount() == removed) {
                             if (model.isEmpty()) this.markSelected(-1);
                             else this.markSelected(0);
                         }
@@ -144,7 +144,7 @@ public class AccountsTab extends UITab {
                 this.addMicrosoftAccountButton.addActionListener(event -> {
                     this.addMicrosoftAccountButton.setEnabled(false);
                     this.handleLogin(msaDeviceCodeConsumer -> {
-                        return new MicrosoftAccount(MicrosoftAccount.DEVICE_CODE_LOGIN.getFromInput(MinecraftAuth.createHttpClient(), new StepMsaDeviceCode.MsaDeviceCodeCallback(msaDeviceCodeConsumer)));
+                        return new MicrosoftAccount(MinecraftAuth.JAVA_DEVICE_CODE_LOGIN.getFromInput(MinecraftAuth.createHttpClient(), new StepMsaDeviceCode.MsaDeviceCodeCallback(msaDeviceCodeConsumer)));
                     });
                 });
                 addButtons.add(this.addMicrosoftAccountButton);
@@ -162,7 +162,7 @@ public class AccountsTab extends UITab {
         contentPane.setLayout(new BorderLayout());
         contentPane.add(body, BorderLayout.CENTER);
 
-        Proxy.getSaveManager().getAccounts().forEach(this::addAccount);
+        Proxy.getAccountManager().getAccounts().forEach(this::addAccount);
         DefaultListModel<Account> model = (DefaultListModel<Account>) this.accountsList.getModel();
         if (!model.isEmpty()) this.markSelected(0);
     }
@@ -188,7 +188,7 @@ public class AccountsTab extends UITab {
             return;
         }
 
-        Proxy.setAccount(Proxy.getSaveManager().getAccounts().get(index));
+        Proxy.setAccount(Proxy.getAccountManager().getAccounts().get(index));
         this.accountsList.repaint();
     }
 
@@ -201,9 +201,9 @@ public class AccountsTab extends UITab {
         model.add(index - 1, account);
         this.accountsList.setSelectedIndex(index - 1);
 
-        Proxy.getSaveManager().removeAccount(account);
-        Proxy.getSaveManager().addAccount(index - 1, account);
-        Proxy.getSaveManager().save();
+        Proxy.getAccountManager().removeAccount(account);
+        Proxy.getAccountManager().addAccount(index - 1, account);
+        Proxy.getAccountManager().save();
     }
 
     private void moveDown(final int index) {
@@ -215,9 +215,9 @@ public class AccountsTab extends UITab {
         model.add(index + 1, account);
         this.accountsList.setSelectedIndex(index + 1);
 
-        Proxy.getSaveManager().removeAccount(account);
-        Proxy.getSaveManager().addAccount(index + 1, account);
-        Proxy.getSaveManager().save();
+        Proxy.getAccountManager().removeAccount(account);
+        Proxy.getAccountManager().addAccount(index + 1, account);
+        Proxy.getAccountManager().save();
     }
 
     private void handleLogin(final TFunction<Consumer<StepMsaDeviceCode.MsaDeviceCode>, Account> requestHandler) {
@@ -229,8 +229,8 @@ public class AccountsTab extends UITab {
                 })));
                 SwingUtilities.invokeLater(() -> {
                     this.closePopup();
-                    Proxy.getSaveManager().addAccount(account);
-                    Proxy.getSaveManager().save();
+                    Proxy.getAccountManager().addAccount(account);
+                    Proxy.getAccountManager().save();
                     this.addAccount(account);
                     Window.showInfo(I18n.get("tab.accounts.add.success", account.getName()));
                 });
