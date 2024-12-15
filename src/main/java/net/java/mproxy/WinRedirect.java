@@ -93,7 +93,16 @@ public class WinRedirect {
 
     public static native boolean portForwardStop(long portForward);
 
-    public static native long blockIpStart(String startSrcIp, String endSrcIp, String startDstIp, String endDstIp);
+    //(ip.SrcAddr >= %s and ip.SrcAddr <= %s and ip.DstAddr >= %s and ip.DstAddr <= %s)
+    public static long blockIpStart(String filter, Layer layer) {
+        return firewallStart(filter, layer.ordinal());
+    }
 
-    public static native boolean blockIpStop(long blockIp);
+    public static boolean blockIpStop(long blockIp) {
+        return firewallStop(blockIp);
+    }
+
+    private static native long firewallStart(String filter, int layer);
+
+    private static native boolean firewallStop(long blockIp);
 }

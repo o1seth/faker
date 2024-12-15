@@ -10,6 +10,9 @@ import io.netty.util.AttributeKey;
 import net.java.mproxy.Proxy;
 import net.java.mproxy.WinRedirect;
 import net.java.mproxy.auth.Account;
+import net.java.mproxy.proxy.event.ConnectEvent;
+import net.java.mproxy.proxy.event.DisconnectEvent;
+import net.java.mproxy.proxy.event.LoginEvent;
 import net.java.mproxy.proxy.packethandler.*;
 import net.java.mproxy.proxy.proxy2server.Proxy2ServerChannelInitializer;
 import net.java.mproxy.proxy.proxy2server.Proxy2ServerHandler;
@@ -41,6 +44,7 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
             if (Proxy.connectedAddresses.contains(isa)) {
                 Logger.u_info("disconnect", "Loopback connection closed " + isa);
                 ctx.close();
+                return;
             }
         }
 
@@ -56,6 +60,7 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
 
 //        this.proxyConnection = new DummyProxyConnection(ctx.channel());
         Proxy.getConnectedClients().add(ctx.channel());
+        Proxy.event(new ConnectEvent(this.proxyConnection));
     }
 
     @Override
@@ -85,6 +90,7 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
             }
         }
         Proxy.getConnectedClients().remove(ctx.channel());
+        Proxy.event(new DisconnectEvent(this.proxyConnection));
     }
 
     static IntConsumer addSkipPort = port -> {
@@ -266,6 +272,7 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
                 System.out.println("side connection created");
             }
             this.proxyConnection.dualConnection = Proxy.dualConnection;
+            Proxy.event(new LoginEvent(this.proxyConnection, Proxy.dualConnection));
         }
 
 

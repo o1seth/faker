@@ -8,6 +8,7 @@ import net.java.mproxy.ui.UITab;
 import net.java.mproxy.ui.Window;
 import net.java.mproxy.ui.elements.LinkLabel;
 import net.java.mproxy.util.logging.Logger;
+import net.java.mproxy.util.network.NetworkInterface;
 
 import javax.swing.*;
 import java.awt.*;
@@ -170,7 +171,9 @@ public class GeneralTab extends UITab {
                     if (Proxy.getAccount() == null) {
                         this.window.accountsTab.markSelected(0);
                     }
-
+                    if (this.window.advancedTab.networkAdapters.getSelectedItem() instanceof NetworkInterface ni) {
+                        Proxy.setTargetAdapter(ni);
+                    }
 
                     this.applyGuiState();
                     this.window.advancedTab.applyGuiState();

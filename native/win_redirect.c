@@ -10,11 +10,12 @@
 
 
 #define MAXBUF          WINDIVERT_MTU_MAX
+#define MDNS_PRIORITY 96
+#define TTL_PRIORITY 97
 #define IP_BLOCK_PRIORITY 98
 #define PORT_FORWARD_PRIORITY 99
 #define REDIRECT_PRIORITY 100
-#define TTL_PRIORITY 101
-#define MDNS_PRIORITY 102
+
 
 char LOG_LEVEL = 2;
 #define DEBUG_LEVEL 1
@@ -381,7 +382,7 @@ PTCP_CONNECTION newConnection(PREDIRECT redirect) {
 		redirect->connections_size = newSize;
 		redirect->connections = newConnections;
 	}
-	redirect->connections[index] = connection; 
+	redirect->connections[index] = connection;
 	connection->index = index;
 
 	redirect->connection_count = index + 1;
@@ -801,6 +802,8 @@ DWORD WINAPI redirect_in(LPVOID lpParam)
 			// For example 192.168.0.2:59834 -> 1.1.1.1:25565
 			// should be sent right after real packet
 
+
+
 			if (WinNatConnectionExists(redirect, ip_header, tcp_header)) {
 				if (prevAck != tcp_header->AckNum || prevSeq != tcp_header->SeqNum) {
 					if (is_info()) {
@@ -877,8 +880,10 @@ DWORD WINAPI redirect_in(LPVOID lpParam)
 			//		continue;
 			//	}
 			//}
-			//debug("[C] Impostor!");
+			//sprint_tcp_src_dst(ip_header, tcp_header, &addr, msg);
+			debug("[C] Impostor");
 		}
+
 		PTCP_CONNECTION con = findConnection(redirect, ip_header, tcp_header);
 
 		if (tcp_header->Syn && !redirect->pause) {
@@ -1329,19 +1334,19 @@ DWORD WINAPI disable_mdns_thread(LPVOID lpParam)
 
 	WinDivertShutdown(handle, WINDIVERT_SHUTDOWN_BOTH);
 	WinDivertClose(handle);
-	info("Ended mdns");
+	info("Stopped mdns");
 	return 0;
 }
 
 __declspec(dllexport) PMDNS mdns_disable(char* local_ip) {//etc 192.168.137.1
 
 	PMDNS mdns = calloc(1, sizeof(MDNS));
-	if (mdns == 0) {
+	if (mdns == NULL) {
 		error("Failed to allocate");
 		return 0;
 	}
 
-	if (local_ip == 0) {
+	if (local_ip == NULL) {
 		mdns->windivert_handle = WinDivertOpen("udp.SrcPort == 5353", WINDIVERT_LAYER_NETWORK, MDNS_PRIORITY, 0);
 	}
 	else {
@@ -1404,6 +1409,7 @@ __declspec(dllexport) BOOL mdns_restore(PMDNS mdns) {
 
 DWORD WINAPI ttl(LPVOID lpParam)
 {
+	info("Started ttl");
 	PTTL_FIX ttlfix = (PTTL_FIX)lpParam;
 	HANDLE handle = ttlfix->forward_handle;
 	HANDLE net = ttlfix->network_handle;
@@ -1459,6 +1465,7 @@ DWORD WINAPI ttl(LPVOID lpParam)
 	WinDivertShutdown(handle, WINDIVERT_SHUTDOWN_BOTH);
 	WinDivertClose(net);
 	WinDivertClose(handle);
+	info("Stopped ttl");
 	return 0;
 }
 
@@ -2038,7 +2045,7 @@ DWORD WINAPI port_forward_thread(LPVOID lpParam)
 		CloseHandle(forward->thread_in);
 	}
 	free(forward);
-	info("Ended port forward");
+	info("Stopped port forward");
 	return 0;
 }
 
@@ -2094,6 +2101,7 @@ __declspec(dllexport) PFORWARD port_forward_start(char* listen_ip, char* listen_
 		forward->skip_ports_count = skip_ports_count;
 		memcpy(forward->skip_ports, skip_ports, skip_ports_count * sizeof(UINT16));
 	}
+	
 	forward->forward_to_addr = ip4(to_ip);
 	forward->this_machine_addr = ip4(this_ip);
 	forward->listen_addr = ip4(listen_ip);
@@ -2190,7 +2198,7 @@ DWORD WINAPI block_ip_thread(LPVOID lpParam)
 	free(block->packet);
 	CloseHandle(block->thread_in);
 	free(block);
-	info("Ended ip block");
+	info("Stopped ip block");
 	return 0;
 }
 __declspec(dllexport) BOOL block_ip_stop(PBLOCK_IP block) {
@@ -2202,7 +2210,11 @@ __declspec(dllexport) BOOL block_ip_stop(PBLOCK_IP block) {
 	WinDivertShutdown(block->windivert, WINDIVERT_SHUTDOWN_RECV);
 	return TRUE;
 }
-__declspec(dllexport) PBLOCK_IP block_ip_start(char* start_src_ip, char* end_src_ip, char* start_dst_ip, char* end_dst_ip) {
+__declspec(dllexport) PBLOCK_IP block_ip_start(char* filter, char layer) {
+	if (layer != WINDIVERT_LAYER_NETWORK && layer != WINDIVERT_LAYER_NETWORK_FORWARD) {
+		error("Unknown layer %i", layer);
+		return 0;
+	}
 	PBLOCK_IP block = calloc(1, sizeof(BLOCK_IP));
 	if (block == 0) {
 		error("Failed to allocate");
@@ -2214,9 +2226,9 @@ __declspec(dllexport) PBLOCK_IP block_ip_start(char* start_src_ip, char* end_src
 		goto err;
 	}
 
-	char filter[196];
-	sprintf(filter, "(ip.SrcAddr >= %s and ip.SrcAddr <= %s and ip.DstAddr >= %s and ip.DstAddr <= %s)", start_src_ip, end_src_ip, start_dst_ip, end_dst_ip);
-	block->windivert = WinDivertOpen(filter, WINDIVERT_LAYER_NETWORK_FORWARD, IP_BLOCK_PRIORITY, 0);
+	//char filter[196];
+	//sprintf(filter, "(ip.SrcAddr >= %s and ip.SrcAddr <= %s and ip.DstAddr >= %s and ip.DstAddr <= %s)", start_src_ip, end_src_ip, start_dst_ip, end_dst_ip);
+	block->windivert = WinDivertOpen(filter, layer, IP_BLOCK_PRIORITY, 0);
 	if (block->windivert == INVALID_HANDLE_VALUE)
 	{
 		error("[C] failed to open the WinDivert device (%d)", GetLastError());
@@ -2343,7 +2355,7 @@ JNIEXPORT jlong JNICALL Java_net_java_mproxy_WinRedirect_portForwardStart(JNIEnv
 			}
 			jint* ports = (*env)->GetIntArrayElements(env, skipPorts, 0);
 			for (INT32 i = 0; i < skip_port_count; i++) {
-				ports[i] = (UINT16)skip_ports[i];
+				skip_ports[i] = (UINT16)ports[i];
 			}
 			(*env)->ReleaseIntArrayElements(env, skipPorts, ports, 0);
 		}
@@ -2365,26 +2377,20 @@ JNIEXPORT jboolean JNICALL Java_net_java_mproxy_WinRedirect_portForwardStop(JNIE
 	return port_forward_stop((PFORWARD)jportForward);
 
 }
-JNIEXPORT jlong JNICALL Java_net_java_mproxy_WinRedirect_blockIpStart(JNIEnv* env, jclass cl, jstring startSrcIp, jstring endSrcIp, jstring startDstIp, jstring endDstIp) {
-	if (startSrcIp == 0 || endSrcIp == 0 || startDstIp == 0 || endDstIp == 0) {
+JNIEXPORT jlong JNICALL Java_net_java_mproxy_WinRedirect_firewallStart(JNIEnv* env, jclass cl, jstring jfilter, jint layer) {
+	if (jfilter == 0) {
 		error("null");
 		return 0;
 	}
-	const char* start_src_ip = (*env)->GetStringUTFChars(env, startSrcIp, 0);
-	const char* end_src_ip = (*env)->GetStringUTFChars(env, endSrcIp, 0);
-	const char* start_dst_ip = (*env)->GetStringUTFChars(env, startDstIp, 0);
-	const char* end_dst_ip = (*env)->GetStringUTFChars(env, endDstIp, 0);
+	const char* filter = (*env)->GetStringUTFChars(env, jfilter, 0);
 
-	jlong block_ip = (jlong)block_ip_start((char*)start_src_ip, (char*)end_src_ip, (char*)start_dst_ip, (char*)end_dst_ip);
-	(*env)->ReleaseStringUTFChars(env, startSrcIp, start_src_ip);
-	(*env)->ReleaseStringUTFChars(env, endSrcIp, end_src_ip);
-	(*env)->ReleaseStringUTFChars(env, startDstIp, start_dst_ip);
-	(*env)->ReleaseStringUTFChars(env, endDstIp, end_dst_ip);
+	jlong block_ip = (jlong)block_ip_start(filter, layer);
+	(*env)->ReleaseStringUTFChars(env, jfilter, filter);
 
 	return block_ip;
 }
 
-JNIEXPORT jboolean JNICALL Java_net_java_mproxy_WinRedirect_blockIpStop(JNIEnv* env, jclass cl, jlong jblockIp) {
+JNIEXPORT jboolean JNICALL Java_net_java_mproxy_WinRedirect_firewallStop(JNIEnv* env, jclass cl, jlong jblockIp) {
 	return block_ip_stop((PBLOCK_IP)jblockIp);
 }
 

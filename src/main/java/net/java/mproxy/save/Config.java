@@ -15,9 +15,12 @@ public class Config {
     private final StringValue serverAddress = registerString("ServerAddress");
     public final BooleanValue onlineMode = registerBoolean("OnlineMode");
     public final BooleanValue signChat = registerBoolean("SignChat");
-    public final BooleanValue tracerouteFix = registerBoolean("TracerouteFix");
-    public final BooleanValue mdnsDisable = registerBoolean("mDNSDisable");
+    public final BooleanValue tracerouteFix = registerBoolean("TracerouteFix").defaultValue(true);
+    public final BooleanValue mdnsDisable = registerBoolean("mDNSDisable").defaultValue(true);
+    public final BooleanValue routerSpoof = registerBoolean("RouterSpoof").defaultValue(true);
+    public final BooleanValue blockTraffic = registerBoolean("BlockTraffic").defaultValue(true);
     public final StringValue locale = registerString("Locale");
+    public final StringValue targetAdapter = registerString("TargetAdapter");
     private InetSocketAddress targetHandshakeAddress = setTargetHandshakeAddress((String) null);
     private InetSocketAddress targetAddress;
     private final File file;

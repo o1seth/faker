@@ -16,6 +16,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Window extends JFrame {
+    private static Window INSTANCE;
+
+    public static synchronized Window getInstance() {
+        if (INSTANCE == null) {
+            INSTANCE = new Window();
+        }
+        return INSTANCE;
+    }
+
     public static final int BORDER_PADDING = 10;
     public static final int BODY_BLOCK_PADDING = 10;
 //    public final LambdaManager eventManager = LambdaManager.threadSafe(new LambdaMetaFactoryGenerator(JavaBypass.TRUSTED_LOOKUP));
@@ -33,7 +42,7 @@ public class Window extends JFrame {
     //    private ImageIcon icon;
 
 
-    public Window() {
+    private Window() {
         Thread.setDefaultUncaughtExceptionHandler((t, e) -> showException(e));
 //        this.eventManager.register(this);
 
@@ -47,8 +56,10 @@ public class Window extends JFrame {
         ToolTipManager.sharedInstance().setInitialDelay(100);
         ToolTipManager.sharedInstance().setDismissDelay(10_000);
         SwingUtilities.updateComponentTreeUI(this);
+
         this.setVisible(true);
     }
+
 
     private void setLookAndFeel() {
         try {
@@ -129,7 +140,7 @@ public class Window extends JFrame {
     }
 
     public static void showNotification(final String message, final int type) {
-//        JOptionPane.showMessageDialog(ViaProxy.getForegroundWindow(), message, "ViaProxy", type);
+        JOptionPane.showMessageDialog(Window.getInstance(), message, "ViaProxy", type);
     }
 
 }
