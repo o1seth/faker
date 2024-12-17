@@ -10,10 +10,12 @@ import net.java.mproxy.ui.elements.LinkLabel;
 import net.java.mproxy.util.logging.Logger;
 import net.java.mproxy.util.network.NetworkInterface;
 
+import javax.imageio.ImageIO;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.io.File;
 
 import static net.java.mproxy.ui.Window.BODY_BLOCK_PADDING;
 import static net.java.mproxy.ui.Window.BORDER_PADDING;
@@ -75,6 +77,50 @@ public class GeneralTab extends UITab {
             this.serverAddress.setToolTipText(I18n.get("tab.general.server_address.tooltip"));
             this.serverAddress.setText(Proxy.getConfig().getServerAddress());
             GBC.create(body).grid(0, gridy++).weightx(1).insets(0, BORDER_PADDING, 0, BORDER_PADDING).fill(GBC.HORIZONTAL).add(this.serverAddress);
+
+
+            GBC.create(body).grid(0, gridy++).weightx(1).insets(0, BORDER_PADDING, 0, BORDER_PADDING).fill(GBC.HORIZONTAL).add(Box.createVerticalStrut(10));
+
+            JPanel devices = new JPanel();
+//            devices.setLayout(new GridLayout(0, 3, BORDER_PADDING, BORDER_PADDING));
+            try {
+
+                ImageIcon computer = new ImageIcon(this.getClass().getResource("/assets/faker/icon/computer_active.png"));
+                ImageIcon computerGray = new ImageIcon(this.getClass().getResource("/assets/faker/icon/computer_gray.png"));
+                ImageIcon swap = new ImageIcon(this.getClass().getResource("/assets/faker/icon/swap.png"));
+
+                JLabel left = new JLabel(computer);
+                JLabel center = new JLabel(swap);
+                JLabel right = new JLabel(computerGray);
+
+                JPanel leftPanel = new JPanel();
+//                leftPanel.setBackground(Color.BLUE);
+                leftPanel.setLayout(new BorderLayout());
+                leftPanel.add(left, BorderLayout.CENTER);
+                JLabel leftStatus = new JLabel("Connected 192.168.1.2");
+                leftStatus.setBackground(Color.BLUE);
+                JPanel hl = new JPanel();
+                hl.add(leftStatus);
+                leftPanel.add(hl, BorderLayout.SOUTH);
+
+                JPanel rightPanel = new JPanel();
+                rightPanel.setLayout(new BorderLayout());
+                rightPanel.add(right, BorderLayout.CENTER);
+                JLabel rightStatus = new JLabel("Connected 192.168.1.120");
+                rightStatus.setHorizontalAlignment(SwingConstants.RIGHT);
+                rightStatus.setBackground(Color.BLUE);
+                JPanel rl = new JPanel();
+                rl.add(rightStatus);
+                rightPanel.add(rl, BorderLayout.SOUTH);
+
+
+                devices.add(leftPanel);
+                devices.add(center);
+                devices.add(rightPanel);
+                GBC.create(body).grid(0, gridy++).weightx(1).insets(0, BORDER_PADDING, 0, BORDER_PADDING).fill(GBC.HORIZONTAL).add(devices);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
         parent.add(body, BorderLayout.CENTER);
     }
