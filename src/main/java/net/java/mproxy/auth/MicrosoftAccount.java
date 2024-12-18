@@ -70,4 +70,8 @@ public class MicrosoftAccount extends Account {
         return true;
     }
 
+    @Override
+    public String toString() {
+        return this.getName();
+    }
 }

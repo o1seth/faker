@@ -88,7 +88,7 @@ public class Window extends JFrame {
 //                ViaProxy.getSaveManager().save();
             }
         });
-        this.setSize(500, 380);
+        this.setSize(500, 390);
         this.setMinimumSize(this.getSize());
         this.setLocationRelativeTo(null);
         this.setContentPane(this.contentPane);

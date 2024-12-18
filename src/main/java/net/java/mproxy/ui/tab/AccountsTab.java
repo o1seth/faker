@@ -12,6 +12,7 @@ import net.raphimc.minecraftauth.MinecraftAuth;
 import net.raphimc.minecraftauth.step.msa.StepMsaDeviceCode;
 
 import javax.swing.*;
+import javax.swing.border.TitledBorder;
 import java.awt.*;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
@@ -43,7 +44,8 @@ public class AccountsTab extends UITab {
 
         int gridy = 0;
         {
-            JLabel infoLabel = new JLabel("<html><p>" + I18n.get("tab.accounts.description.line1") + "</p></html>");
+            JLabel infoLabel = new JLabel();
+            I18n.link(infoLabel, "tab.accounts.description.line1");
             GBC.create(body).grid(0, gridy++).weightx(1).insets(BORDER_PADDING, BORDER_PADDING, 0, BORDER_PADDING).fill(GBC.HORIZONTAL).add(infoLabel);
         }
         {
@@ -56,8 +58,8 @@ public class AccountsTab extends UITab {
                         int row = AccountsTab.this.accountsList.locationToIndex(e.getPoint());
                         AccountsTab.this.accountsList.setSelectedIndex(row);
                     } else if (e.getClickCount() == 2) {
-                        int index = AccountsTab.this.accountsList.getSelectedIndex();
-                        if (index != -1) AccountsTab.this.markSelected(index);
+//                        int index = AccountsTab.this.accountsList.getSelectedIndex();
+//                        if (index != -1) AccountsTab.this.markSelected(index);
                     }
                 }
             });
@@ -80,36 +82,38 @@ public class AccountsTab extends UITab {
                 public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
                     DefaultListCellRenderer component = (DefaultListCellRenderer) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
                     Account account = (Account) value;
-                    if (Proxy.getAccount() == account) {
-                        component.setText("<html><span style=\"color:rgb(0, 180, 0)\"><b>" + account.getDisplayString() + "</b></span></html>");
-                    } else {
-                        component.setText(account.getDisplayString());
-                    }
+//                    if (Proxy.getAccount() == account) {
+//                        component.setText("<html><span style=\"color:rgb(0, 180, 0)\"><b>" + account.getDisplayString() + "</b></span></html>");
+//                    } else {
+                    component.setText(account.getDisplayString());
+//                    }
                     return component;
                 }
             });
             scrollPane.setViewportView(this.accountsList);
             JPopupMenu contextMenu = new JPopupMenu();
             {
-                JMenuItem selectItem = new JMenuItem(I18n.get("tab.accounts.list.context_menu.select"));
-                selectItem.addActionListener(event -> {
-                    int index = this.accountsList.getSelectedIndex();
-                    if (index != -1) this.markSelected(index);
-                });
-                contextMenu.add(selectItem);
+//                JMenuItem selectItem = new JMenuItem(I18n.get("tab.accounts.list.context_menu.select"));
+//                selectItem.addActionListener(event -> {
+//                    int index = this.accountsList.getSelectedIndex();
+//                    if (index != -1) this.markSelected(index);
+//                });
+//                contextMenu.add(selectItem);
             }
             {
-                JMenuItem removeItem = new JMenuItem(I18n.get("tab.accounts.list.context_menu.remove"));
+                JMenuItem removeItem = new JMenuItem();
+                I18n.link(removeItem, "tab.accounts.list.context_menu.remove");
                 removeItem.addActionListener(event -> {
                     int index = this.accountsList.getSelectedIndex();
                     if (index != -1) {
                         Account removed = model.remove(index);
                         Proxy.getAccountManager().removeAccount(removed);
                         Proxy.getAccountManager().save();
-                        if (Proxy.getAccount() == removed) {
-                            if (model.isEmpty()) this.markSelected(-1);
-                            else this.markSelected(0);
-                        }
+                        window.generalTab.updateAccounts();
+//                        if (Proxy.getAccount() == removed) {
+//                            if (model.isEmpty()) this.markSelected(-1);
+//                            else this.markSelected(0);
+//                        }
                     }
                     if (index < model.getSize()) this.accountsList.setSelectedIndex(index);
                     else if (index > 0) this.accountsList.setSelectedIndex(index - 1);
@@ -117,7 +121,8 @@ public class AccountsTab extends UITab {
                 contextMenu.add(removeItem);
             }
             {
-                JMenuItem moveUp = new JMenuItem(I18n.get("tab.accounts.list.context_menu.move_up"));
+                JMenuItem moveUp = new JMenuItem();
+                I18n.link(moveUp, "tab.accounts.list.context_menu.move_up");
                 moveUp.addActionListener(event -> {
                     int index = this.accountsList.getSelectedIndex();
                     if (index != -1) this.moveUp(index);
@@ -125,7 +130,8 @@ public class AccountsTab extends UITab {
                 contextMenu.add(moveUp);
             }
             {
-                JMenuItem moveDown = new JMenuItem(I18n.get("tab.accounts.list.context_menu.move_down"));
+                JMenuItem moveDown = new JMenuItem();
+                I18n.link(moveDown, "tab.accounts.list.context_menu.move_down");
                 moveDown.addActionListener(event -> {
                     int index = this.accountsList.getSelectedIndex();
                     if (index != -1) this.moveDown(index);
@@ -140,7 +146,8 @@ public class AccountsTab extends UITab {
             addButtons.setLayout(new GridLayout(1, 1, BORDER_PADDING, 0));
 
             {
-                this.addMicrosoftAccountButton = new JButton(I18n.get("tab.accounts.add_microsoft.label"));
+                this.addMicrosoftAccountButton = new JButton();
+                I18n.link(addMicrosoftAccountButton, "tab.accounts.add_microsoft.label");
                 this.addMicrosoftAccountButton.addActionListener(event -> {
                     this.addMicrosoftAccountButton.setEnabled(false);
                     this.handleLogin(msaDeviceCodeConsumer -> {
@@ -153,7 +160,10 @@ public class AccountsTab extends UITab {
 
             JPanel border = new JPanel();
             border.setLayout(new GridBagLayout());
-            border.setBorder(BorderFactory.createTitledBorder(I18n.get("tab.accounts.add.title")));
+            TitledBorder titledBorder = BorderFactory.createTitledBorder("");
+            I18n.link(titledBorder, "tab.accounts.add.title");
+            border.setBorder(titledBorder);
+
             GBC.create(border).grid(0, 0).weightx(1).insets(2, 4, 4, 4).fill(GBC.HORIZONTAL).add(addButtons);
 
             GBC.create(body).grid(0, gridy++).weightx(1).insets(BODY_BLOCK_PADDING, BORDER_PADDING, BORDER_PADDING, BORDER_PADDING).fill(GBC.HORIZONTAL).add(border);
@@ -164,7 +174,7 @@ public class AccountsTab extends UITab {
 
         Proxy.getAccountManager().getAccounts().forEach(this::addAccount);
         DefaultListModel<Account> model = (DefaultListModel<Account>) this.accountsList.getModel();
-        if (!model.isEmpty()) this.markSelected(0);
+//        if (!model.isEmpty()) this.markSelected(0);
     }
 
     private void closePopup() { // Might be getting called multiple times
@@ -182,15 +192,15 @@ public class AccountsTab extends UITab {
         model.addElement(account);
     }
 
-    public void markSelected(final int index) {
-        if (index < 0 || index >= this.accountsList.getModel().getSize()) {
-            Proxy.setAccount(null);
-            return;
-        }
-
-        Proxy.setAccount(Proxy.getAccountManager().getAccounts().get(index));
-        this.accountsList.repaint();
-    }
+//    public void markSelected(final int index) {
+//        if (index < 0 || index >= this.accountsList.getModel().getSize()) {
+//            Proxy.setAccount(null);
+//            return;
+//        }
+//
+//        Proxy.setAccount(Proxy.getAccountManager().getAccounts().get(index));
+//        this.accountsList.repaint();
+//    }
 
     private void moveUp(final int index) {
         DefaultListModel<Account> model = (DefaultListModel<Account>) this.accountsList.getModel();
@@ -204,6 +214,7 @@ public class AccountsTab extends UITab {
         Proxy.getAccountManager().removeAccount(account);
         Proxy.getAccountManager().addAccount(index - 1, account);
         Proxy.getAccountManager().save();
+        window.generalTab.updateAccounts();
     }
 
     private void moveDown(final int index) {
@@ -218,6 +229,7 @@ public class AccountsTab extends UITab {
         Proxy.getAccountManager().removeAccount(account);
         Proxy.getAccountManager().addAccount(index + 1, account);
         Proxy.getAccountManager().save();
+        window.generalTab.updateAccounts();
     }
 
     private void handleLogin(final TFunction<Consumer<StepMsaDeviceCode.MsaDeviceCode>, Account> requestHandler) {
@@ -231,6 +243,7 @@ public class AccountsTab extends UITab {
                     this.closePopup();
                     Proxy.getAccountManager().addAccount(account);
                     Proxy.getAccountManager().save();
+                    window.generalTab.updateAccounts();
                     this.addAccount(account);
                     Window.showInfo(I18n.get("tab.accounts.add.success", account.getName()));
                 });

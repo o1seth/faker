@@ -56,12 +56,12 @@ public class HttpHostSpoofer extends Thread {
                     socket.setSoTimeout(30_000);
                     new RedirectThread(accepted, socket, "Host: " + fromHost, "Host: " + toHost).start();
                     new RedirectThread(socket, accepted, null, null).start();
-                } catch (ConnectException e) {
+                } catch (ConnectException ignored) {
 
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+//            e.printStackTrace();
         }
     }
 
@@ -111,7 +111,7 @@ public class HttpHostSpoofer extends Thread {
 
                 }
             } catch (Throwable e) {
-                e.printStackTrace();
+//                e.printStackTrace();
             }
         }
     }

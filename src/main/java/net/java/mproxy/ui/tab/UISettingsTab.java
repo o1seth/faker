@@ -4,12 +4,10 @@ import net.java.mproxy.ui.GBC;
 import net.java.mproxy.ui.I18n;
 import net.java.mproxy.ui.UITab;
 import net.java.mproxy.ui.Window;
-import net.java.mproxy.ui.elements.LinkLabel;
 
 import javax.swing.*;
 import java.awt.*;
 
-import static net.java.mproxy.ui.Window.BODY_BLOCK_PADDING;
 import static net.java.mproxy.ui.Window.BORDER_PADDING;
 
 public class UISettingsTab extends UITab {
@@ -25,7 +23,8 @@ public class UISettingsTab extends UITab {
 
         int gridy = 0;
         {
-            JLabel languageLabel = new JLabel(I18n.get("tab.ui_settings.language.label"));
+            JLabel languageLabel = new JLabel();
+            I18n.link(languageLabel, "tab.ui_settings.language.label");
             GBC.create(body).grid(0, gridy++).insets(BORDER_PADDING, BORDER_PADDING, 0, BORDER_PADDING).anchor(GBC.NORTHWEST).add(languageLabel);
 
             JComboBox<String> language = new JComboBox<>(I18n.getAvailableLocales().toArray(new String[0]));
@@ -39,24 +38,16 @@ public class UISettingsTab extends UITab {
                 }
             });
             language.setSelectedItem(I18n.getCurrentLocale());
-//            language.addActionListener(event -> {
-//                if (!(language.getSelectedItem() instanceof String locale)) return;
-//                if (locale.equals(I18n.getCurrentLocale())) return;
-//                I18n.setLocale(locale);
-//                Window.showInfo(I18n.get("tab.ui_settings.language.success", I18n.get("language.name"), locale));
-//                try {
-//                    JarUtil.launch(JarUtil.getJarFile().orElseThrow());
-//                    System.exit(0);
-//                } catch (Throwable e) {
-//                    Logger.LOGGER.error("Could not start the ViaProxy jar", e);
-//                    ViaProxyWindow.showException(e);
-//                    System.exit(1);
-//                }
-//            });
+            language.addActionListener(event -> {
+                if (!(language.getSelectedItem() instanceof String locale)) return;
+                if (locale.equals(I18n.getCurrentLocale())) return;
+                I18n.setLocale(locale);
+                I18n.update();
+            });
             GBC.create(body).grid(0, gridy++).weightx(1).insets(0, BORDER_PADDING, 0, BORDER_PADDING).fill(GBC.HORIZONTAL).add(language);
         }
-        GBC.create(body).grid(0, gridy++).weightx(1).insets(BODY_BLOCK_PADDING, BORDER_PADDING, 0, BORDER_PADDING).fill(GBC.HORIZONTAL).add(new JLabel("<html>" + I18n.get("tab.ui_settings.crowdin.info") + "</html>"));
-        GBC.create(body).grid(0, gridy++).weightx(1).insets(0, BORDER_PADDING, 0, BORDER_PADDING).fill(GBC.HORIZONTAL).add(new LinkLabel(I18n.get("tab.ui_settings.crowdin.link"), "https://crowdin.com/project/viaproxy"));
+//        GBC.create(body).grid(0, gridy++).weightx(1).insets(BODY_BLOCK_PADDING, BORDER_PADDING, 0, BORDER_PADDING).fill(GBC.HORIZONTAL).add(new JLabel("<html>" + I18n.get("tab.ui_settings.crowdin.info") + "</html>"));
+//        GBC.create(body).grid(0, gridy++).weightx(1).insets(0, BORDER_PADDING, 0, BORDER_PADDING).fill(GBC.HORIZONTAL).add(new LinkLabel(I18n.get("tab.ui_settings.crowdin.link"), "https://crowdin.com/project/viaproxy"));
 
         contentPane.setLayout(new BorderLayout());
         contentPane.add(body, BorderLayout.NORTH);

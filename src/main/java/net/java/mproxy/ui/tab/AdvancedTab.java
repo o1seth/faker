@@ -1,10 +1,12 @@
 package net.java.mproxy.ui.tab;
 
 import net.java.mproxy.Proxy;
+import net.java.mproxy.WinRedirect;
 import net.java.mproxy.ui.GBC;
 import net.java.mproxy.ui.I18n;
 import net.java.mproxy.ui.UITab;
 import net.java.mproxy.ui.Window;
+import net.java.mproxy.util.Sys;
 import net.java.mproxy.util.network.NetworkInterface;
 import net.java.mproxy.util.network.NetworkUtil;
 
@@ -14,12 +16,14 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.io.Console;
 import java.util.List;
 
 import static net.java.mproxy.ui.Window.BODY_BLOCK_PADDING;
 import static net.java.mproxy.ui.Window.BORDER_PADDING;
 
 public class AdvancedTab extends UITab {
+    public static boolean showDebug;
     JCheckBox proxyOnlineMode;
     JCheckBox chatSigning;
     JCheckBox tracerouteFix;
@@ -50,44 +54,50 @@ public class AdvancedTab extends UITab {
         int gridy = 0;
 
         {
-            this.proxyOnlineMode = new JCheckBox(I18n.get("tab.advanced.proxy_online_mode.label"));
-            this.proxyOnlineMode.setToolTipText(I18n.get("tab.advanced.proxy_online_mode.tooltip"));
+            this.proxyOnlineMode = new JCheckBox();
+            I18n.link(proxyOnlineMode, "tab.advanced.proxy_online_mode.label");
+            I18n.linkTooltip(proxyOnlineMode, "tab.advanced.proxy_online_mode.tooltip");
             this.proxyOnlineMode.setSelected(Proxy.getConfig().onlineMode.get());
             checkboxes.add(this.proxyOnlineMode);
         }
 
         {
-            this.chatSigning = new JCheckBox(I18n.get("tab.advanced.chat_signing.label"));
-            this.chatSigning.setToolTipText(I18n.get("tab.advanced.chat_signing.tooltip"));
-            this.proxyOnlineMode.setSelected(Proxy.getConfig().signChat.get());
+            this.chatSigning = new JCheckBox();
+            I18n.link(chatSigning, "tab.advanced.chat_signing.label");
+            I18n.linkTooltip(chatSigning, "tab.advanced.chat_signing.tooltip");
+            this.chatSigning.setSelected(Proxy.getConfig().signChat.get());
             checkboxes.add(this.chatSigning);
         }
 
         {
-            this.tracerouteFix = new JCheckBox(I18n.get("tab.advanced.traceroute_fix.label"));
-            this.tracerouteFix.setToolTipText(I18n.get("tab.advanced.traceroute_fix.tooltip"));
+            this.tracerouteFix = new JCheckBox();
+            I18n.link(tracerouteFix, "tab.advanced.traceroute_fix.label");
+            I18n.linkTooltip(tracerouteFix, "tab.advanced.traceroute_fix.tooltip");
             this.tracerouteFix.setSelected(Proxy.getConfig().tracerouteFix.get());
             checkboxes.add(this.tracerouteFix);
         }
 
         {
-            this.mdnsDisable = new JCheckBox(I18n.get("tab.advanced.mdns_disable.label"));
-            this.mdnsDisable.setToolTipText(I18n.get("tab.advanced.mdns_disable.tooltip"));
+            this.mdnsDisable = new JCheckBox();
+            I18n.link(mdnsDisable, "tab.advanced.mdns_disable.label");
+            I18n.linkTooltip(mdnsDisable, "tab.advanced.mdns_disable.tooltip");
             this.mdnsDisable.setSelected(Proxy.getConfig().mdnsDisable.get());
             checkboxes.add(this.mdnsDisable);
         }
 
         {
-            this.routerSpoof = new JCheckBox(I18n.get("tab.advanced.router_spoof.label"));
-            this.routerSpoof.setToolTipText(I18n.get("tab.advanced.router_spoof.tooltip"));
+            this.routerSpoof = new JCheckBox();
+            I18n.link(routerSpoof, "tab.advanced.router_spoof.label");
+            I18n.linkTooltip(routerSpoof, "tab.advanced.router_spoof.tooltip");
             this.routerSpoof.setSelected(Proxy.getConfig().routerSpoof.get());
             this.routerSpoof.addActionListener(this::updateNetworkAdapterEnabled);
             checkboxes.add(this.routerSpoof);
         }
 
         {
-            this.blockTraffic = new JCheckBox(I18n.get("tab.advanced.block_traffic.label"));
-            this.blockTraffic.setToolTipText(I18n.get("tab.advanced.block_traffic.tooltip"));
+            this.blockTraffic = new JCheckBox();
+            I18n.link(blockTraffic, "tab.advanced.block_traffic.label");
+            I18n.linkTooltip(blockTraffic, "tab.advanced.block_traffic.tooltip");
             this.blockTraffic.setSelected(Proxy.getConfig().blockTraffic.get());
             this.blockTraffic.addActionListener(this::updateNetworkAdapterEnabled);
             checkboxes.add(this.blockTraffic);
@@ -95,7 +105,8 @@ public class AdvancedTab extends UITab {
 
         {
 
-            JLabel networkInterfaceLabel = new JLabel(I18n.get("tab.advanced.network_interface.label"));
+            JLabel networkInterfaceLabel = new JLabel();
+            I18n.link(networkInterfaceLabel, "tab.advanced.network_interface.label");
             checkboxes.add(networkInterfaceLabel);
             networkAdapters = new JComboBox<>(new DefaultComboBoxModel<>());
             networkAdapters.addMouseListener(new MouseAdapter() {
@@ -127,13 +138,32 @@ public class AdvancedTab extends UITab {
             fillAdapters(true);
             updateNetworkAdapterEnabled(null);
         }
+        if (System.console() != null || showDebug) {
+            JCheckBox debugMode = new JCheckBox("print debug");
+            debugMode.addActionListener(new ActionListener() {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    if (debugMode.isSelected()) {
+                        WinRedirect.setLogLevel(1);
+                    } else {
+                        WinRedirect.setLogLevel(2);
+                    }
+                }
+            });
+            GBC.create(body).grid(0, gridy++).insets(BODY_BLOCK_PADDING, BORDER_PADDING, 0, BODY_BLOCK_PADDING).fill(GBC.BOTH).weight(1, 1).add(debugMode);
+        }
+
 
         GBC.create(body).grid(0, gridy++).insets(BODY_BLOCK_PADDING, BORDER_PADDING, 0, BODY_BLOCK_PADDING).fill(GBC.BOTH).weight(1, 1).add(checkboxes);
 
         parent.add(body, BorderLayout.NORTH);
     }
 
-    private void updateNetworkAdapterEnabled(ActionEvent e) {
+    void updateNetworkAdapterEnabled(ActionEvent e) {
+        if (!this.routerSpoof.isEnabled()) {
+            this.networkAdapters.setEnabled(false);
+            return;
+        }
         this.networkAdapters.setEnabled(this.blockTraffic.isSelected() || this.routerSpoof.isSelected());
     }
 

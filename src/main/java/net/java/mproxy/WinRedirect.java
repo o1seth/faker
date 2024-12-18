@@ -105,4 +105,6 @@ public class WinRedirect {
     private static native long firewallStart(String filter, int layer);
 
     private static native boolean firewallStop(long blockIp);
+
+    public static native void setLogLevel(int level);
 }

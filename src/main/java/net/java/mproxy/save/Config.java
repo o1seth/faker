@@ -13,6 +13,8 @@ import java.util.ArrayList;
 public class Config {
     final ArrayList<Value> values = new ArrayList<>();
     private final StringValue serverAddress = registerString("ServerAddress");
+
+    public final StringValue account = registerString("Account");
     public final BooleanValue onlineMode = registerBoolean("OnlineMode");
     public final BooleanValue signChat = registerBoolean("SignChat");
     public final BooleanValue tracerouteFix = registerBoolean("TracerouteFix").defaultValue(true);

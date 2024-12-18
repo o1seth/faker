@@ -30,6 +30,10 @@ BOOL is_info() {
 BOOL is_warn() {
 	return LOG_LEVEL != 0 && LOG_LEVEL <= WARN_LEVEL;
 }
+__declspec(dllexport) void set_log_level(char level) {
+	LOG_LEVEL = level;
+}
+
 typedef struct
 {
 	HANDLE handle;
@@ -2401,6 +2405,12 @@ JNIEXPORT jstring JNICALL Java_net_java_mproxy_WinRedirect_getError(JNIEnv* env,
 JNIEXPORT void JNICALL Java_net_java_mproxy_WinRedirect_resetError(JNIEnv* env, jclass cl) {
 	reset_error();
 }
+
+JNIEXPORT void JNICALL Java_net_java_mproxy_WinRedirect_setLogLevel(JNIEnv* env, jclass cl,  jint level) {
+	set_log_level(level);
+}
+
+
 //int main(int argc, char* argv[]) {
 //
 //	mdns_disable("192.168.137.1");

@@ -9,10 +9,12 @@ import io.netty.util.ResourceLeakDetector;
 import io.netty.util.concurrent.GlobalEventExecutor;
 import net.java.mproxy.proxy.event.ConnectEvent;
 import net.java.mproxy.proxy.event.Event;
+import net.java.mproxy.proxy.event.ProxyStateEvent;
 import net.java.mproxy.proxy.util.chat.Ints;
 import net.java.mproxy.save.Config;
 import net.java.mproxy.save.AccountManager;
 import net.java.mproxy.ui.Window;
+import net.java.mproxy.ui.tab.AdvancedTab;
 import net.java.mproxy.util.HttpHostSpoofer;
 import net.java.mproxy.util.network.NetworkInterface;
 import net.java.mproxy.util.network.NetworkUtil;
@@ -128,7 +130,13 @@ public class Proxy {
     }
 
     public static void main(String[] args) throws Throwable {
-
+        if (args != null) {
+            for (String arg : args) {
+                if ("--showdebug".equalsIgnoreCase(arg)) {
+                    AdvancedTab.showDebug = true;
+                }
+            }
+        }
         loadNetty();
         config = new Config(new File("faker_config.json"));
         accountManager = new AccountManager(new File("faker_accounts.json"));
@@ -163,7 +171,9 @@ public class Proxy {
             throw new IllegalStateException("Proxy is already running");
         }
         try {
+
             Logger.LOGGER.info("Starting proxy server");
+            event(new ProxyStateEvent(ProxyStateEvent.State.STARTING));
             currentProxyServer = new NetServer(Client2ProxyHandler::new, Client2ProxyChannelInitializer::new);
 
             try {
@@ -190,8 +200,10 @@ public class Proxy {
             if (Proxy.getConfig().blockTraffic.get()) {
                 startBlockTraffic();
             }
+            event(new ProxyStateEvent(ProxyStateEvent.State.STARTED));
 //            currentProxyServer.getChannel().closeFuture().syncUninterruptibly();
         } catch (Throwable e) {
+            event(new ProxyStateEvent(ProxyStateEvent.State.STOPPED));
             currentProxyServer = null;
             throw e;
         }
@@ -200,6 +212,7 @@ public class Proxy {
     public static void stopProxy() {
         if (currentProxyServer != null) {
             Logger.LOGGER.info("Stopping proxy server");
+            event(new ProxyStateEvent(ProxyStateEvent.State.STOPPING));
             stopRedirect();
             if (Proxy.getConfig().tracerouteFix.get()) {
                 disableTtlFix();
@@ -222,6 +235,7 @@ public class Proxy {
                 } catch (Throwable ignored) {
                 }
             }
+            event(new ProxyStateEvent(ProxyStateEvent.State.STOPPED));
         }
     }
 
@@ -381,7 +395,7 @@ public class Proxy {
         filter.append(String.format("(ip.SrcAddr == %s and ip.DstAddr == %s)", srcIp, dstIp));
         addPortsToFilter(filter, skipTcpPorts, skipUdpPorts);
         routerBlockTraffic = WinRedirect.blockIpStart(filter.toString(), WinRedirect.Layer.NETWORK);
-        System.out.println("ROUTER BLOCK " + filter + "    " + routerBlockTraffic);
+
     }
 
     private static void startPortForward() {

@@ -2,6 +2,8 @@ package net.java.mproxy.proxy.session;
 
 
 import io.netty.channel.Channel;
+import net.java.mproxy.Proxy;
+import net.java.mproxy.proxy.event.SwapEvent;
 import net.java.mproxy.proxy.packet.C2SAbstractPong;
 import net.java.mproxy.proxy.packet.C2SPlayerCommand;
 import net.java.mproxy.proxy.packet.C2SPong;
@@ -163,6 +165,7 @@ public class DualConnection {
             this.lastSwapControllerTime = System.currentTimeMillis();
             follower.isController = true;
             controller.isController = false;
+            Proxy.event(new SwapEvent(follower));
         }
     }
 
