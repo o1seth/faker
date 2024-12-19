@@ -129,6 +129,8 @@ public class Window extends JFrame {
         this.addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {
+                generalTab.applyGuiState();
+                advancedTab.applyGuiState();
                 Proxy.getConfig().save();
                 if (!Proxy.isStarted()) {
                     System.exit(0);
@@ -147,7 +149,7 @@ public class Window extends JFrame {
             }
         });
 
-        this.setSize(500, 390);
+        this.setSize(500, 398);
         this.setMinimumSize(this.getSize());
         this.setLocationRelativeTo(null);
         this.setContentPane(this.contentPane);

@@ -4,10 +4,8 @@ import net.java.mproxy.Proxy;
 import net.java.mproxy.WinRedirect;
 import net.java.mproxy.auth.Account;
 import net.java.mproxy.auth.MicrosoftAccount;
-import net.java.mproxy.proxy.event.ConnectEvent;
-import net.java.mproxy.proxy.event.DisconnectEvent;
-import net.java.mproxy.proxy.event.LoginEvent;
-import net.java.mproxy.proxy.event.SwapEvent;
+import net.java.mproxy.proxy.event.*;
+import net.java.mproxy.proxy.event.Event;
 import net.java.mproxy.proxy.session.ProxyConnection;
 import net.java.mproxy.ui.GBC;
 import net.java.mproxy.ui.I18n;
@@ -25,6 +23,7 @@ import java.awt.image.BufferedImage;
 import java.net.InetSocketAddress;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.function.Consumer;
 
 import static net.java.mproxy.ui.Window.BODY_BLOCK_PADDING;
 import static net.java.mproxy.ui.Window.BORDER_PADDING;
@@ -277,12 +276,19 @@ public class GeneralTab extends UITab {
             this.pauseButton.addActionListener(event -> {
                 if (this.pauseButton.getText().equalsIgnoreCase(I18n.get("tab.general.pause.suspend"))) {
                     Proxy.suspendRedirect();
-                    this.pauseButton.setText(I18n.get("tab.general.pause.resume"));
-                    this.pauseButton.setToolTipText(I18n.get("tab.general.pause.resume.tooltip"));
                 } else if (this.pauseButton.getText().equalsIgnoreCase(I18n.get("tab.general.pause.resume"))) {
                     Proxy.resumeRedirect();
-                    this.pauseButton.setText(I18n.get("tab.general.pause.suspend"));
-                    this.pauseButton.setToolTipText(I18n.get("tab.general.pause.suspend.tooltip"));
+                }
+            });
+            Proxy.registerEvent(event -> {
+                if (event instanceof RedirectStateChangeEvent changeEvent) {
+                    if (changeEvent.getState() == RedirectStateChangeEvent.State.PAUSED) {
+                        this.pauseButton.setText(I18n.get("tab.general.pause.resume"));
+                        this.pauseButton.setToolTipText(I18n.get("tab.general.pause.resume.tooltip"));
+                    } else {
+                        this.pauseButton.setText(I18n.get("tab.general.pause.suspend"));
+                        this.pauseButton.setToolTipText(I18n.get("tab.general.pause.suspend.tooltip"));
+                    }
                 }
             });
             this.pauseButton.setEnabled(false);
@@ -309,7 +315,7 @@ public class GeneralTab extends UITab {
 
     private void setComponentsEnabled(final boolean state) {
         this.serverAddress.setEnabled(state);
-
+        this.accounts.setEnabled(state);
 
         this.window.advancedTab.proxyOnlineMode.setEnabled(state);
 
@@ -323,22 +329,14 @@ public class GeneralTab extends UITab {
     }
 
     private void updateStateLabel() {
-
-        this.stateLabel.setText(I18n.get("tab.general.state.running", Proxy.proxyAddress.getHostName() + ":" + Proxy.proxyAddress.getPort()));
-
+        I18n.link(this.stateLabel, "tab.general.state.running", (t, s) -> {
+            t.setText(I18n.get(s, Proxy.proxyAddress.getHostName() + ":" + Proxy.proxyAddress.getPort()));
+        });
         this.stateLabel.setForeground(Color.GREEN);
         this.stateLabel.setVisible(true);
     }
 
     private void start() {
-
-//        if (Proxy.getSaveManager().uiSave.get("notice.ban_warning") == null) {
-//            Proxy.getSaveManager().uiSave.put("notice.ban_warning", "true");
-//            Proxy.getSaveManager().save();
-//
-//            window.showWarning("<html><div style='text-align: center;'>" + I18n.get("tab.general.warning.ban_warning.line1") + "<br><b>" + I18n.get("tab.general.warning.risk") + "</b></div></html>");
-//        }
-
 
         this.setComponentsEnabled(false);
         this.startButton.setEnabled(false);
@@ -346,9 +344,6 @@ public class GeneralTab extends UITab {
         I18n.link(GeneralTab.this.startButton, "tab.general.state.starting");
         new Thread(() -> {
             final String serverAddress = this.serverAddress.getText().trim();
-//            final String bindAddress = this.window.advancedTab.bindAddress.getText().trim();
-//            final String proxyUrl = this.window.advancedTab.proxy.getText().trim();
-
             try {
                 try {
 
@@ -359,7 +354,9 @@ public class GeneralTab extends UITab {
                     }
                     if (this.accounts.getSelectedItem() instanceof Account account) {
                         Proxy.setAccount(account);
-
+                        if (account.refresh()) {
+                            Proxy.getAccountManager().save();
+                        }
                     } else {
                         Proxy.setAccount(null);
                     }
@@ -374,7 +371,6 @@ public class GeneralTab extends UITab {
                     this.applyGuiState();
                     this.window.advancedTab.applyGuiState();
                     Proxy.getConfig().save();
-//                    Proxy.getAccountManager().save();
                 } catch (Throwable t) {
                     SwingUtilities.invokeLater(() -> window.showError(t.getMessage()));
                     throw t;
@@ -383,7 +379,7 @@ public class GeneralTab extends UITab {
                 try {
                     Proxy.startProxy();
                 } catch (Throwable e) {
-                    SwingUtilities.invokeLater(() -> window.showError(I18n.get("tab.general.error.failed_to_start")));
+                    SwingUtilities.invokeLater(() -> window.showError(I18n.get("tab.general.error.failed_to_start", e.getMessage())));
                     throw e;
                 }
 
@@ -406,7 +402,7 @@ public class GeneralTab extends UITab {
                     }
                     this.startButton.setEnabled(true);
                     I18n.link(GeneralTab.this.startButton, "tab.general.state.start");
-//                    this.stateLabel.setVisible(false);
+                    this.stateLabel.setVisible(false);
                 });
             }
         }).start();
@@ -418,25 +414,21 @@ public class GeneralTab extends UITab {
         Proxy.stopProxy();
 
         int delay = 800;
-        Timer timer = new Timer(delay, new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                GeneralTab.this.stateLabel.setVisible(false);
-                GeneralTab.this.startButton.setEnabled(true);
-                I18n.link(GeneralTab.this.startButton, "tab.general.state.start");
-                GeneralTab.this.setComponentsEnabled(true);
-                if (GeneralTab.this.pauseButton != null) {
-                    GeneralTab.this.pauseButton.setEnabled(false);
-                    I18n.link(GeneralTab.this.pauseButton, "tab.general.pause.suspend");
-                }
+        Timer timer = new Timer(delay, e -> {
+            GeneralTab.this.stateLabel.setVisible(false);
+            GeneralTab.this.startButton.setEnabled(true);
+            I18n.link(GeneralTab.this.startButton, "tab.general.state.start");
+            GeneralTab.this.setComponentsEnabled(true);
+            if (GeneralTab.this.pauseButton != null) {
+                GeneralTab.this.pauseButton.setEnabled(false);
+                I18n.link(GeneralTab.this.pauseButton, "tab.general.pause.suspend");
             }
         });
         timer.setRepeats(false);
         timer.start();
     }
 
-    //    @EventHandler(events = UICloseEvent.class)
-    void applyGuiState() {
+    public void applyGuiState() {
         Proxy.getConfig().setServerAddress(this.serverAddress.getText());
         if (this.accounts.getSelectedItem() instanceof Account account) {
             Proxy.getConfig().account.set(account.getName());

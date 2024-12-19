@@ -45,7 +45,6 @@ public class Proxy2ServerHandler extends SimpleChannelInboundHandler<Packet> {
     private Channel channel;
     private int joinGamePacketId;
     private int chatSessionUpdatePacketId;
-    boolean firstSwap = true;
 
     @Override
     public void channelRegistered(ChannelHandlerContext ctx) throws Exception {
@@ -63,7 +62,7 @@ public class Proxy2ServerHandler extends SimpleChannelInboundHandler<Packet> {
             Proxy.connectedAddresses.remove(isa);
         }
 
-        Logger.u_info("disconnect", this.proxyConnection, "Connection closed");
+        Logger.u_info("disconnect", this.proxyConnection, "Connection closed (proxy->server)");
         if (proxyConnection.dualConnection != null) {
             ProxyConnection sideConnection = proxyConnection.dualConnection.getSideConnection();
             Proxy.dualConnection = null;
@@ -71,7 +70,6 @@ public class Proxy2ServerHandler extends SimpleChannelInboundHandler<Packet> {
                 sideConnection.getC2P().close();
             } catch (Throwable ignored) {
             }
-            System.out.println("                                     Dual closed by server");
         }
         try {
             this.proxyConnection.getC2P().close();
@@ -93,7 +91,6 @@ public class Proxy2ServerHandler extends SimpleChannelInboundHandler<Packet> {
         if (this.proxyConnection.isForwardMode()) {
             throw new IllegalStateException("Unexpected packet in forward mode " + PacketUtils.toString(packet));
         }
-//        Logger.raw("IN " + packet);
         ProxyConnection sideConnection = null;
         ProxyConnection mainConnection = this.proxyConnection;
         DualConnection dualConnection = mainConnection.dualConnection;
@@ -109,9 +106,9 @@ public class Proxy2ServerHandler extends SimpleChannelInboundHandler<Packet> {
             }
         }
 
-        if (!(packet instanceof UnknownPacket) && !(packet instanceof S2CSetEntityMotion) && !(packet instanceof S2CEntityPositionSync) && !(packet instanceof S2CDestroyEntities) && !(packet instanceof S2CPing)) {
-            System.out.println("IN  " + packet);
-        }
+//        if (!(packet instanceof UnknownPacket) && !(packet instanceof S2CSetEntityMotion) && !(packet instanceof S2CEntityPositionSync) && !(packet instanceof S2CDestroyEntities) && !(packet instanceof S2CPing)) {
+//            System.out.println("IN  " + packet);
+//        }
 
         if (!handleCompression(packet, ctx.channel())) {
             return;
@@ -121,23 +118,7 @@ public class Proxy2ServerHandler extends SimpleChannelInboundHandler<Packet> {
             handleS2CLoginHello(p);
             return;
         }
-//        if (dualConnection != null && packet instanceof S2CPlayerPosition && firstSwap) {
-//            firstSwap = false;
-//            new Thread() {
-//                @Override
-//                public void run() {
-//                    while (Proxy.dualConnection != null) {
-//                        try {
-//                            Thread.sleep(10000);
-//                            dualConnection.swapController();
-//                            System.out.println("SWAP CONTROLLER");
-//                        } catch (InterruptedException e) {
-//                            throw new RuntimeException(e);
-//                        }
-//                    }
-//                }
-//            }.start();
-//        }
+
         final List<ChannelFutureListener> listeners = new ArrayList<>(2);
         listeners.add(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
 
@@ -149,8 +130,6 @@ public class Proxy2ServerHandler extends SimpleChannelInboundHandler<Packet> {
                 //disable read server->proxy packets, until two clients enter the PLAY state. Look ConfigurationPacketHandler.java
                 dualConnection.disableAutoRead();//for main connection
                 dualConnection.disableAutoRead();//for side connection
-                Logger.raw("                                 DUAL CLOSE disableAutoRead " + packet);
-
             }
         }
         if (packet instanceof UnknownPacket p && p.packetId == joinGamePacketId) {
@@ -173,7 +152,6 @@ public class Proxy2ServerHandler extends SimpleChannelInboundHandler<Packet> {
                 sideConnection.sendToClient(packet);
             }
         } else {
-            System.out.println("SEND TO CLIENT 0 ");
             mainConnection.sendToClient(packet, listeners);
         }
     }
@@ -293,15 +271,14 @@ public class Proxy2ServerHandler extends SimpleChannelInboundHandler<Packet> {
             DualConnection dualConnection = this.proxyConnection.dualConnection;
             if (packet.packetId == this.joinGamePacketId) {
                 if (!dualConnection.isBothPlayState() && dualConnection.hasDualConnections()) {
-                    Logger.raw("\n\n\n\n\n                                                                                   NOT BOTH CONNECTION IN PLAY STATE!\n\n\n");
+                    Logger.LOGGER.warn("\nNot both connections in play state!\n");
                 }
                 if (dualConnection.isFirstSwap()) {
                     dualConnection.swapController();
-                    System.out.println("FIRST SWAP CONTROLLER");
                 }
 
                 dualConnection.entityId = Unpooled.wrappedBuffer(packet.data).readInt();
-                System.out.println("IN  JoinGamePacket, player id " + dualConnection.entityId);
+                Logger.LOGGER.info("Join game, playerID = " + dualConnection.entityId);
                 if (dualConnection.isP2sEncrypted() && dualConnection.getChatSession1_19_3() != null) {
                     final ChatSession1_19_3 chatSession = dualConnection.getChatSession1_19_3();
                     listeners.add(f -> {

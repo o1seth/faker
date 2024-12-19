@@ -17,15 +17,11 @@ import net.raphimc.netminecraft.packet.UnknownPacket;
 import java.util.List;
 
 public class ChatSignaturePacketHandler extends PacketHandler {
-
-    private final int joinGameId;
     private final int chatSessionUpdateId;
     private final int chatMessageId;
 
     public ChatSignaturePacketHandler(ProxyConnection proxyConnection) {
         super(proxyConnection);
-
-        this.joinGameId = MCPackets.S2C_LOGIN.getId(proxyConnection.getVersion());
         this.chatSessionUpdateId = MCPackets.C2S_CHAT_SESSION_UPDATE.getId(proxyConnection.getVersion());
         this.chatMessageId = MCPackets.C2S_CHAT.getId(proxyConnection.getVersion());
     }
@@ -76,7 +72,6 @@ public class ChatSignaturePacketHandler extends PacketHandler {
 //                Types.ACKNOWLEDGED_BIT_SET.write(newChatMessage, new BitSet(20)); // acknowledged
                 newChatMessage.writeBytes(new byte[4]);
                 this.proxyConnection.sendToServer(newChatMessage, ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
-                System.out.println("SEND SIGN");
                 return false;
             }
         }

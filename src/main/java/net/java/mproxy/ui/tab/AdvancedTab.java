@@ -24,6 +24,7 @@ import static net.java.mproxy.ui.Window.BORDER_PADDING;
 
 public class AdvancedTab extends UITab {
     public static boolean showDebug;
+    JCheckBox showKickErrors;
     JCheckBox proxyOnlineMode;
     JCheckBox chatSigning;
     JCheckBox tracerouteFix;
@@ -40,7 +41,6 @@ public class AdvancedTab extends UITab {
     @Override
     protected void init(JPanel contentPane) {
         contentPane.setLayout(new BorderLayout());
-
         this.addBody(contentPane);
     }
 
@@ -52,6 +52,8 @@ public class AdvancedTab extends UITab {
         checkboxes.setLayout(new GridLayout(0, 2, BORDER_PADDING, BORDER_PADDING));
 
         int gridy = 0;
+
+
 
         {
             this.proxyOnlineMode = new JCheckBox();
@@ -138,6 +140,19 @@ public class AdvancedTab extends UITab {
             fillAdapters(true);
             updateNetworkAdapterEnabled(null);
         }
+        {
+            this.showKickErrors = new JCheckBox();
+            I18n.link(showKickErrors, "tab.advanced.show_kick_errors.label");
+            I18n.linkTooltip(showKickErrors, "tab.advanced.show_kick_errors.tooltip");
+            this.showKickErrors.setSelected(Proxy.getConfig().showKickErrors.get());
+            checkboxes.add(this.showKickErrors);
+        }
+
+        {
+            //just empty
+            checkboxes.add(Box.createHorizontalBox());
+        }
+
         if (WinRedirect.isSupported() && (System.console() != null || showDebug)) {
             JCheckBox debugMode = new JCheckBox("print debug");
             debugMode.addActionListener(new ActionListener() {
@@ -232,7 +247,7 @@ public class AdvancedTab extends UITab {
         }).start();
     }
 
-    void applyGuiState() {
+    public void applyGuiState() {
         Proxy.getConfig().onlineMode.set(this.proxyOnlineMode.isSelected());
         Proxy.getConfig().signChat.set(this.chatSigning.isSelected());
         Proxy.getConfig().tracerouteFix.set(this.tracerouteFix.isSelected());

@@ -147,12 +147,12 @@ public class DualConnection {
                 controller.getChannel().writeAndFlush(pong).syncUninterruptibly();
             }
             this.skipPongs = controller.getPongPacketsAfter(follower.getLastSentPong());
-            if (!notSentPongs.isEmpty()) {
-                Logger.raw("NOT SENT PONGS " + notSentPongs);
-            }
-            if (!this.skipPongs.isEmpty()) {
-                Logger.raw("SKIP     PONGS " + this.skipPongs);
-            }
+//            if (!notSentPongs.isEmpty()) {
+//                Logger.raw("NOT SENT PONGS " + notSentPongs);
+//            }
+//            if (!this.skipPongs.isEmpty()) {
+//                Logger.raw("SKIP     PONGS " + this.skipPongs);
+//            }
 
 //            if (this.entityId != 0) {
 //                S2CSetEntityMotion motion = new S2CSetEntityMotion();
@@ -284,27 +284,4 @@ public class DualConnection {
         return chatSession1_19_3;
     }
 
-//    public void sendToServer(Packet packet) {
-//        if (mainConnection.getChannel() != null) {
-//            mainConnection.getChannel().writeAndFlush(packet);
-//            return;
-//        }
-//        if (sideConnection != null && sideConnection.getChannel() != null) {
-//            sideConnection.getChannel().writeAndFlush(packet);
-//            return;
-//        }
-//        throw new IllegalStateException("Attempt to send packet to nothing");
-//    }
-//
-//    public void sendToServer(Packet packet, List<ChannelFutureListener> listeners) {
-//        if (mainConnection.getChannel() != null) {
-//            mainConnection.getChannel().writeAndFlush(packet).addListeners(listeners.toArray(new ChannelFutureListener[listeners.size()]));
-//            return;
-//        }
-//        if (sideConnection != null && sideConnection.getChannel() != null) {
-//            sideConnection.getChannel().writeAndFlush(packet).addListeners(listeners.toArray(new ChannelFutureListener[listeners.size()]));
-//            return;
-//        }
-//        throw new IllegalStateException("Attempt to send packet to nothing");
-//    }
 }

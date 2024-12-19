@@ -28,7 +28,10 @@ public class ExternalInterface {
         try {
             if (proxyConnection.getAccount() != null) {
                 final Account account = proxyConnection.getAccount();
-//                ViaProxy.getSaveManager().accountsSave.ensureRefreshed(account);
+                if (account.refresh()) {
+                    Proxy.getAccountManager().save();
+                }
+
 
                 proxyConnection.setGameProfile(account.getGameProfile());
                 //final UserConnection user = proxyConnection.getUserConnection();
@@ -63,7 +66,7 @@ public class ExternalInterface {
 
         } catch (Throwable e) {
             Logger.LOGGER.error("Failed to fill player data", e);
-            proxyConnection.kickClient("§cFailed to fill player data. This might be caused by outdated account tokens or rate limits. Wait a couple of seconds and try again. If the problem persists, remove and re-add your account.");
+            proxyConnection.kickClient("Failed to fill player data. This might be caused by outdated account tokens or rate limits. Wait a couple of seconds and try again. If the problem persists, remove and re-add your account.");
         }
 
         proxyConnection.getLoginHelloPacket().name = proxyConnection.getGameProfile().getName();
@@ -76,10 +79,10 @@ public class ExternalInterface {
             try {
                 AuthLibServices.SESSION_SERVICE.joinServer(microsoftAccount.getGameProfile(), microsoftAccount.getMcProfile().getMcToken().getAccessToken(), serverIdHash);
             } catch (Throwable e) {
-                proxyConnection.kickClient("§cFailed to authenticate with Mojang servers! Please try again in a couple of seconds.");
+                proxyConnection.kickClient("Failed to authenticate with Mojang servers! Please try again in a couple of seconds.");
             }
         } else {
-            proxyConnection.kickClient("§cThis server is in online mode and requires a valid authentication mode.");
+            proxyConnection.kickClient("This server is in online mode and requires a valid authentication mode.");
         }
     }
 
@@ -95,7 +98,7 @@ public class ExternalInterface {
             });
             packet.salt = salt;
         } else {
-            proxyConnection.kickClient("§cThis server requires a signed nonce. Please enable chat signing in the config and select a valid authentication mode.");
+            proxyConnection.kickClient("This server requires a signed nonce. Please enable chat signing in the config and select a valid authentication mode.");
         }
     }
 

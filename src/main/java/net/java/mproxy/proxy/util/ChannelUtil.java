@@ -15,7 +15,7 @@ public class ChannelUtil {
         if (channel == null) {
             return;
         }
-        System.out.println("DISABLE AUTOREAD " + channel);
+//        Logger.LOGGER.info("DISABLE AUTOREAD " + channel);
         if (channel.attr(LAST_AUTO_READ).get() == null) {
             channel.attr(LAST_AUTO_READ).set(new Stack<>());
         }
@@ -28,7 +28,7 @@ public class ChannelUtil {
         if (channel == null) {
             return;
         }
-        System.out.println("RESTORE AUTOREAD " + channel);
+//         Logger.LOGGER.info("RESTORE AUTOREAD " + channel);
         if (channel.attr(LAST_AUTO_READ).get() == null) {
             Logger.LOGGER.error("Tried to restore auto read, but it was never disabled");
             return;
@@ -39,9 +39,7 @@ public class ChannelUtil {
                 Logger.LOGGER.error("Race condition detected: Auto read has been enabled somewhere else, channel " + channel);
             } else {
                 Logger.LOGGER.error("Race condition detected: Auto read has been enabled somewhere else, controller? " + proxyConnection.isController() + ", " + channel);
-                new Exception().printStackTrace();
             }
-
             return;
         }
         channel.config().setAutoRead(channel.attr(LAST_AUTO_READ).get().pop());

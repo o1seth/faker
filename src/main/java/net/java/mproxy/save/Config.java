@@ -17,6 +17,7 @@ public class Config {
     public final StringValue account = registerString("Account");
     public final BooleanValue onlineMode = registerBoolean("OnlineMode");
     public final BooleanValue signChat = registerBoolean("SignChat");
+    public final BooleanValue showKickErrors = registerBoolean("ShowKickErrors");
     public final BooleanValue tracerouteFix = registerBoolean("TracerouteFix").defaultValue(true);
     public final BooleanValue mdnsDisable = registerBoolean("mDNSDisable").defaultValue(true);
     public final BooleanValue routerSpoof = registerBoolean("RouterSpoof").defaultValue(true);

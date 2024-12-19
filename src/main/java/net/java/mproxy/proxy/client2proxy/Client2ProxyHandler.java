@@ -53,12 +53,11 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
         if (!WinRedirect.redirectGetRealAddresses(Proxy.forward_redirect, remote.getAddress().getHostAddress(), remote.getPort(), addresses)) {
             WinRedirect.redirectGetRealAddresses(Proxy.redirect, remote.getAddress().getHostAddress(), remote.getPort(), addresses);
         }
-        System.out.println("NEW CONNECTION " + remote + " " + ctx.channel().localAddress());
+
         final Supplier<ChannelHandler> handlerSupplier = Proxy2ServerHandler::new;
         this.proxyConnection = new ProxyConnection(handlerSupplier, Proxy2ServerChannelInitializer::new, ctx.channel(), addresses[0], addresses[1]);
         ctx.channel().attr(CLIENT_2_PROXY_ATTRIBUTE_KEY).set(this);
 
-//        this.proxyConnection = new DummyProxyConnection(ctx.channel());
         Proxy.getConnectedClients().add(ctx.channel());
         Proxy.event(new ConnectEvent(this.proxyConnection));
     }
@@ -67,14 +66,13 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         super.channelInactive(ctx);
 
-//        if (this.proxyConnection instanceof DummyProxyConnection) return;
-        System.out.println("Closing client->proxy channel");
+        Logger.u_info("disconnect", this.proxyConnection, "Connection closed (client->proxy)");
         DualConnection dualConnection = this.proxyConnection.dualConnection;
         if (dualConnection != null) {
 
             if (dualConnection.isClosed()) {
                 Proxy.dualConnection = null;
-                System.out.println("                                     Dual closed");
+                Logger.LOGGER.info("Dual connection closed");
                 try {
                     this.proxyConnection.getChannel().close();
                 } catch (Throwable ignored) {
@@ -96,7 +94,7 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
     static IntConsumer addSkipPort = port -> {
         if (Proxy.redirect != 0) {
             WinRedirect.redirectAddSkipPort(Proxy.redirect, port);
-            System.out.println("SKIP PORT ADDED " + port);
+            Logger.LOGGER.info("Skip port added " + port);
         }
 
     };
@@ -105,7 +103,7 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
             InetSocketAddress localAddress = (InetSocketAddress) f.channel().localAddress();
             int port = localAddress.getPort();
             WinRedirect.redirectRemoveSkipPort(Proxy.redirect, port);
-            System.out.println("SKIP PORT REMOVED " + port);
+            Logger.LOGGER.info("Skip port removed " + port);
         }
     };
 
@@ -157,7 +155,6 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
 
     public boolean onHandshake(ChannelHandlerContext ctx, C2SHandshakingClientIntentionPacket handshakingPacket) {
         if (shouldEnablePortForward(handshakingPacket)) {
-            System.out.println(PacketUtils.toString(handshakingPacket) + " SET TO FORWARD");
             C2SHandshakingClientIntentionPacket handshake;
             InetSocketAddress connectAddress;
             if (this.proxyConnection.isRedirected()) {
@@ -226,12 +223,6 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
             if (!proxyConnection.preReceivePacket(packet)) {
                 return;
             }
-
-//            if (proxyConnection.isController()) {
-//                System.out.printf(Integer.toUnsignedString(proxyConnection.hashCode(), 16) + " controller send: " + PacketUtils.toString(packet) + "\n");
-//            } else {
-//                System.out.printf(System.currentTimeMillis() + " " + Integer.toUnsignedString(proxyConnection.hashCode(), 16) + "       side send: " + PacketUtils.toString(packet) + "\n");
-//            }
         }
         if (this.proxyConnection.getC2pConnectionState() == ConnectionState.HANDSHAKING) {
 
@@ -264,12 +255,11 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
             if (Proxy.dualConnection == null) {
                 Proxy.dualConnection = new DualConnection(proxyConnection);
                 this.proxyConnection.setController(true);
-                System.out.println("DualConnection created");
             } else {
                 this.proxyConnection.setController(false);
                 this.proxyConnection.setChannel(Proxy.dualConnection.getMainConnection());
                 Proxy.dualConnection.setSideConnection(this.proxyConnection);
-                System.out.println("side connection created");
+                Logger.LOGGER.info("Dual connection fully initialized");
             }
             this.proxyConnection.dualConnection = Proxy.dualConnection;
             Proxy.event(new LoginEvent(this.proxyConnection, Proxy.dualConnection));
@@ -279,9 +269,7 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
         if (packet.intendedState == null) {
             throw CloseAndReturn.INSTANCE;
         }
-//        final int version = packet.protocolVersion;
-//        this.proxyConnection.setVersion(version);
-//        this.proxyConnection.setC2pConnectionState(packet.intendedState.getConnectionState());
+
 
         InetSocketAddress connectAddress;
         InetSocketAddress handshakeAddress;
@@ -314,12 +302,12 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
             //not tested. Should be implemented in future
             if (packet.intendedState.getConnectionState() == ConnectionState.LOGIN && TransferDataHolder.hasTempRedirect(this.proxyConnection.getC2P())) {
                 connectAddress = TransferDataHolder.removeTempRedirect(this.proxyConnection.getC2P());
-                System.out.println("tempRedirect  " + connectAddress);
+                Logger.LOGGER.warn("Temp redirect " + connectAddress);
             }
         }
         this.proxyConnection.setClientHandshakeAddress(new InetSocketAddress(packet.address, packet.port));
         ChannelUtil.disableAutoRead(this.proxyConnection.getC2P());
-        System.out.println("Connect...");
+
         this.connect(connectAddress, handshakeAddress, packet, Proxy.getAccount());
     }
 
@@ -354,9 +342,7 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
             Logger.u_info("connect", this.proxyConnection, "cancel connect to server");
             this.proxyConnection.setP2sConnectionState(intendedState.getConnectionState());
             ChannelUtil.restoreAutoRead(this.proxyConnection.getC2P());
-
-//            WinRedirect.redirectPause(Proxy.forward_redirect);
-//            WinRedirect.redirectPause(Proxy.redirect);
+            Proxy.suspendRedirect();
             return;
         }
         if (connectAddress.equals(handshakeAddress)) {

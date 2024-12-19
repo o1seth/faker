@@ -213,22 +213,11 @@ public class ProxyConnection extends NetClient {
 
 
     private ChannelFuture sendServer(Object msg) {
-//        if (msg instanceof UnknownPacket p) {
-////            Logger.raw(Integer.toUnsignedString(this.hashCode(), 16) + " send packet " + Integer.toHexString(p.packetId));
-//        } else if (msg instanceof C2SPlayerCommand p) {
-//            Logger.raw(Integer.toUnsignedString(this.hashCode(), 16) + " send packet " + p.id + " " + p.action);
-//        } else {
-//            Logger.raw(Integer.toUnsignedString(this.hashCode(), 16) + " send packet " + msg);
+//        if (msg instanceof C2SAbstractPong pong) {
+//            if (dualConnection != null && dualConnection.skipPong(pong)) {
+//                Logger.raw("SKIP: " + PacketUtils.toString(pong));
+//            }
 //        }
-
-        if (msg instanceof C2SAbstractPong pong) {
-            if (dualConnection != null && dualConnection.skipPong(pong)) {
-                Logger.raw("SKIP: " + PacketUtils.toString(pong));
-            } else {
-//                Logger.raw("SEND: " + PacketUtils.toString(pong));
-            }
-
-        }
         return getChannel().writeAndFlush(msg);
     }
 
@@ -251,7 +240,6 @@ public class ProxyConnection extends NetClient {
                     } else {
                         p.setOnGround(dualConnection.onGround);
                     }
-//                    System.out.println("SET ONGROUND 2 " + p);
                     if (p instanceof C2SMovePlayer.Status) {
                         return false;
                     }
@@ -260,7 +248,6 @@ public class ProxyConnection extends NetClient {
             if (syncPosState == ProxyConnection.SYNC_POS_SENT) {
                 if (packet instanceof C2SMovePlayer.PosRot) {
                     syncPosState = ProxyConnection.SYNC_POS_RECEIVED;
-//                    System.out.println("SKIP 1");
                     return false;
                 }
             }
@@ -372,25 +359,6 @@ public class ProxyConnection extends NetClient {
         this.getC2P().attr(MCPipeline.ENCRYPTION_ATTRIBUTE_KEY).set(encryption);
     }
 
-    public void kickClient(final String message) throws CloseAndReturn {
-        Logger.u_err("proxy kick", this, message);
-
-        final ChannelFuture future;
-        if (this.c2pConnectionState == ConnectionState.STATUS) {
-            future = this.c2p.writeAndFlush(new S2CStatusResponsePacket("{\"players\":{\"max\":0,\"online\":0},\"description\":" + new JsonPrimitive(message) + ",\"version\":{\"protocol\":-1,\"name\":\"Proxy\"}}"));
-        } else if (this.c2pConnectionState == ConnectionState.LOGIN) {
-            future = this.c2p.writeAndFlush(new S2CLoginDisconnectPacket(new StringComponent(message)));
-        } else if (this.c2pConnectionState == ConnectionState.CONFIGURATION) {
-            future = this.c2p.writeAndFlush(new S2CConfigDisconnectPacket(new StringComponent(message)));
-        } else if (this.c2pConnectionState == ConnectionState.PLAY) {
-            future = this.c2p.writeAndFlush(new S2CPlayDisconnectPacket(new StringComponent(message)));
-        } else {
-            future = this.c2p.newSucceededFuture();
-        }
-
-        future.addListener(ChannelFutureListener.CLOSE);
-        throw CloseAndReturn.INSTANCE;
-    }
 
     public C2SAbstractPong getLastSentPong() {
         C2SAbstractPong last = null;
@@ -451,12 +419,13 @@ public class ProxyConnection extends NetClient {
         try {
             removeHandlers(getC2P());
         } catch (Exception e) {
-            e.printStackTrace();
+            e.printStackTrace(Logger.SYSERR);
             Logger.u_err("Set forward mode c2p", this, e.getMessage());
         }
         try {
             removeHandlers(getChannel());
         } catch (Exception e) {
+            e.printStackTrace(Logger.SYSERR);
             Logger.u_err("Set forward mode p2s", this, e.getMessage());
         }
         this.isForwardMode = true;
@@ -494,5 +463,27 @@ public class ProxyConnection extends NetClient {
 //        if(channel.pipeline().get(HandshakeCodec.HANDSHAKE_HANDLER_NAME) != null) {
 //            channel.pipeline().remove(HandshakeCodec.HANDSHAKE_HANDLER_NAME);
 //        }
+    }
+
+    public void kickClient(final String message) throws CloseAndReturn {
+        Logger.u_err("proxy kick", this, message);
+
+        final ChannelFuture future;
+        if (!Proxy.getConfig().showKickErrors.get()) {
+            future = this.c2p.newSucceededFuture();
+        } else if (this.c2pConnectionState == ConnectionState.STATUS) {
+            future = this.c2p.writeAndFlush(new S2CStatusResponsePacket("{\"players\":{\"max\":0,\"online\":0},\"description\":" + new JsonPrimitive(message) + ",\"version\":{\"protocol\":-1,\"name\":\"Proxy\"}}"));
+        } else if (this.c2pConnectionState == ConnectionState.LOGIN) {
+            future = this.c2p.writeAndFlush(new S2CLoginDisconnectPacket(new StringComponent(message)));
+        } else if (this.c2pConnectionState == ConnectionState.CONFIGURATION) {
+            future = this.c2p.writeAndFlush(new S2CConfigDisconnectPacket(new StringComponent(message)));
+        } else if (this.c2pConnectionState == ConnectionState.PLAY) {
+            future = this.c2p.writeAndFlush(new S2CPlayDisconnectPacket(new StringComponent(message)));
+        } else {
+            future = this.c2p.newSucceededFuture();
+        }
+
+        future.addListener(ChannelFutureListener.CLOSE);
+        throw CloseAndReturn.INSTANCE;
     }
 }

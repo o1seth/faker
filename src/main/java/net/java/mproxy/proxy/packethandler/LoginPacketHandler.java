@@ -62,11 +62,11 @@ public class LoginPacketHandler extends PacketHandler {
             }
 
             if (Proxy.getConfig().onlineMode.get()) {
-                if (proxyConnection.isController()) {
-                    Logger.raw("controller cancel and send response S2CLoginHelloPacket\n");
-                } else {
-                    Logger.raw("      side cancel and send response S2CLoginHelloPacket\n");
-                }
+//                if (proxyConnection.isController()) {
+//                    Logger.raw("controller cancel and send response S2CLoginHelloPacket\n");
+//                } else {
+//                    Logger.raw("      side cancel and send response S2CLoginHelloPacket\n");
+//                }
                 this.proxyConnection.sendToClient(new S2CLoginHelloPacket("", KEY_PAIR.getPublic().getEncoded(), verifyToken, true), ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
 
 
@@ -92,13 +92,13 @@ public class LoginPacketHandler extends PacketHandler {
             if (loginKeyPacket.encryptedNonce != null) {
                 if (!Arrays.equals(verifyToken, CryptUtil.decryptData(KEY_PAIR.getPrivate(), loginKeyPacket.encryptedNonce))) {
                     Logger.u_err("auth", this.proxyConnection, "Invalid verify token");
-                    this.proxyConnection.kickClient("§cInvalid verify token!");
+                    this.proxyConnection.kickClient("Invalid verify token!");
                 }
             } else {
                 final C2SLoginHelloPacket loginHelloPacket = this.proxyConnection.getLoginHelloPacket();
                 if (loginHelloPacket.key == null || !CryptUtil.verifySignedNonce(loginHelloPacket.key, verifyToken, loginKeyPacket.salt, loginKeyPacket.signature)) {
                     Logger.u_err("auth", this.proxyConnection, "Invalid verify token");
-                    this.proxyConnection.kickClient("§cInvalid verify token!");
+                    this.proxyConnection.kickClient("Invalid verify token!");
                 }
             }
 
@@ -110,7 +110,7 @@ public class LoginPacketHandler extends PacketHandler {
                 final GameProfile mojangProfile = AuthLibServices.SESSION_SERVICE.hasJoinedServer(this.proxyConnection.getGameProfile(), serverHash, null);
                 if (mojangProfile == null) {
                     Logger.u_err("auth", this.proxyConnection, "Invalid session");
-                    this.proxyConnection.kickClient("§cInvalid session! Please restart minecraft (and the launcher) and try again.");
+                    this.proxyConnection.kickClient("Invalid session! Please restart minecraft (and the launcher) and try again.");
                 } else {
                     this.proxyConnection.setGameProfile(mojangProfile);
                 }
@@ -118,11 +118,11 @@ public class LoginPacketHandler extends PacketHandler {
             } catch (Throwable e) {
                 throw new RuntimeException("Failed to make session request for user '" + userName + "'!", e);
             }
-            if (proxyConnection.isController()) {
-                Logger.raw("controller cancel and send C2SLoginHelloPacket instead\n");
-            } else {
-                Logger.raw("      side cancel and send C2SLoginHelloPacket instead\n");
-            }
+//            if (proxyConnection.isController()) {
+//                Logger.raw("controller cancel and send C2SLoginHelloPacket instead\n");
+//            } else {
+//                Logger.raw("      side cancel and send C2SLoginHelloPacket instead\n");
+//            }
             ExternalInterface.fillPlayerData(this.proxyConnection);
 
 

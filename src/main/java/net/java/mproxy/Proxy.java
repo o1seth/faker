@@ -10,6 +10,7 @@ import io.netty.util.concurrent.GlobalEventExecutor;
 import net.java.mproxy.proxy.event.ConnectEvent;
 import net.java.mproxy.proxy.event.Event;
 import net.java.mproxy.proxy.event.ProxyStateEvent;
+import net.java.mproxy.proxy.event.RedirectStateChangeEvent;
 import net.java.mproxy.proxy.util.chat.Ints;
 import net.java.mproxy.save.Config;
 import net.java.mproxy.save.AccountManager;
@@ -43,8 +44,7 @@ import java.util.function.Consumer;
 public class Proxy {
 
     public static InetSocketAddress proxyAddress = new InetSocketAddress("127.0.0.1", 25565);
-    //    private static InetSocketAddress targetHandshakeAddress = setTargetHandshakeAddress((String) null);
-//    private static InetSocketAddress targetAddress;
+
     public static final int compressionThreshold = 256;
     public static final int connectTimeout = 8000;
     public static DualConnection dualConnection;
@@ -52,8 +52,7 @@ public class Proxy {
     private static Config config;
     private static AccountManager accountManager;
     private static Account account;
-    //        public static final boolean SIGN_CHAT = true;
-//    public static final boolean ONLINE_MODE = true; // also encrypt client -> proxy connection
+
     private static NetServer currentProxyServer;
     private static ChannelGroup CLIENT_CHANNELS;
     private static NetworkInterface targetAdapter;
@@ -64,35 +63,6 @@ public class Proxy {
 
     public static ArrayList<InetSocketAddress> connectedAddresses = new ArrayList<>();
     private static final List<Consumer<Event>> events = new ArrayList<>();
-
-    private static MicrosoftAccount auth() {
-        HttpClient httpClient = MinecraftAuth.createHttpClient();
-        try {
-            try {
-                File account = new File("account.json");
-                JsonObject serializedSession = (JsonObject) JsonParser.parseReader(new FileReader(account));
-                StepFullJavaSession.FullJavaSession loadedSession = MinecraftAuth.JAVA_DEVICE_CODE_LOGIN.fromJson(serializedSession);
-                StepFullJavaSession.FullJavaSession readyToUseSession = MinecraftAuth.JAVA_DEVICE_CODE_LOGIN.refresh(httpClient, loadedSession);
-                return new MicrosoftAccount(readyToUseSession);
-            } catch (Throwable e) {
-                StepFullJavaSession.FullJavaSession javaSession = MinecraftAuth.JAVA_DEVICE_CODE_LOGIN.getFromInput(httpClient, new StepMsaDeviceCode.MsaDeviceCodeCallback(msaDeviceCode -> {
-                    // Method to generate a verification URL and a code for the user to enter on that page
-//                    System.out.println("Go to " + msaDeviceCode.getVerificationUri());
-//                    System.out.println("Enter code " + msaDeviceCode.getUserCode());
-
-                    // There is also a method to generate a direct URL without needing the user to enter a code
-                    System.out.println("Go to " + msaDeviceCode.getDirectVerificationUri());
-                }));
-                JsonObject serializedSession = MinecraftAuth.JAVA_DEVICE_CODE_LOGIN.toJson(javaSession);
-                Files.write(new File("account.json").toPath(), serializedSession.toString().getBytes(StandardCharsets.UTF_8));
-                return new MicrosoftAccount(javaSession);
-            }
-        } catch (Throwable e) {
-            e.printStackTrace();
-        }
-        return null;
-    }
-
     public static long forward_redirect;
     public static long redirect;
     private static long mdns;
@@ -129,11 +99,12 @@ public class Proxy {
         }
     }
 
-    public static void main(String[] args) throws Throwable {
+    public static void main(String[] args) {
         if (args != null) {
             for (String arg : args) {
                 if ("--showdebug".equalsIgnoreCase(arg)) {
                     AdvancedTab.showDebug = true;
+                    break;
                 }
             }
         }
@@ -161,8 +132,6 @@ public class Proxy {
                 }
             }
         });
-//        account = auth();
-//        startProxy();
     }
 
     public static boolean isStarted() {
@@ -303,6 +272,7 @@ public class Proxy {
         if (redirect != 0) {
             WinRedirect.redirectPause(redirect);
         }
+        event(new RedirectStateChangeEvent(RedirectStateChangeEvent.State.PAUSED));
     }
 
     public static void resumeRedirect() {
@@ -315,6 +285,7 @@ public class Proxy {
         if (redirect != 0) {
             WinRedirect.redirectResume(redirect);
         }
+        event(new RedirectStateChangeEvent(RedirectStateChangeEvent.State.RESUMED));
     }
 
     private static void mdnsDisable() {

@@ -205,7 +205,6 @@ public class MovePlayerPacketHandler extends PacketHandler {
         } else if (packet instanceof S2CSetPassengers pass) {
 
 
-//            System.out.println("PASS me: " + dualConnection.entityId + " :: " + pass.vehicle + " " + Arrays.toString(pass.passengers));
             if (dualConnection.vehicleId == pass.vehicle) {
                 dualConnection.clearVehicle();
             }
