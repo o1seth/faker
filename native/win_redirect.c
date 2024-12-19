@@ -1220,13 +1220,13 @@ __declspec(dllexport) PREDIRECT redirect_start(UINT16 port, char* filter, char l
 	r->network_handle = WinDivertOpen("false", WINDIVERT_LAYER_NETWORK, REDIRECT_PRIORITY, WINDIVERT_FLAG_DROP);
 	if (r->network_handle == INVALID_HANDLE_VALUE)
 	{
-		error("[C] failed to open the WinDivert device (network) (%d)", GetLastError());
+		error("Failed to open the WinDivert device (network) (%d)", GetLastError());
 		goto err;
 	}
 	r->forward_handle = WinDivertOpen(filter, layer, REDIRECT_PRIORITY, 0);
 	if (r->forward_handle == INVALID_HANDLE_VALUE)
 	{
-		error("[C] failed to open the WinDivert device (forward) (%d)", GetLastError());
+		error("Failed to open the WinDivert device (forward) (%d)", GetLastError());
 		goto err;
 	}
 
@@ -2121,7 +2121,7 @@ __declspec(dllexport) PFORWARD port_forward_start(char* listen_ip, char* listen_
 	free(filter);
 	if (forward->windivert == INVALID_HANDLE_VALUE)
 	{
-		error("[C] failed to open the WinDivert device (%d)", GetLastError());
+		error("Failed to open the WinDivert device (%d)", GetLastError());
 		goto err;
 	}
 
@@ -2235,7 +2235,7 @@ __declspec(dllexport) PBLOCK_IP block_ip_start(char* filter, char layer) {
 	block->windivert = WinDivertOpen(filter, layer, IP_BLOCK_PRIORITY, 0);
 	if (block->windivert == INVALID_HANDLE_VALUE)
 	{
-		error("[C] failed to open the WinDivert device (%d)", GetLastError());
+		error("Failed to open the WinDivert device (%d)", GetLastError());
 		goto err;
 	}
 	block->thread_in = CreateThread(NULL, 256 * 1024, block_ip_thread, block, 0, 0);

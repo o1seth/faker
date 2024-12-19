@@ -138,15 +138,17 @@ public class AdvancedTab extends UITab {
             fillAdapters(true);
             updateNetworkAdapterEnabled(null);
         }
-        if (System.console() != null || showDebug) {
+        if (WinRedirect.isSupported() && (System.console() != null || showDebug)) {
             JCheckBox debugMode = new JCheckBox("print debug");
             debugMode.addActionListener(new ActionListener() {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    if (debugMode.isSelected()) {
-                        WinRedirect.setLogLevel(1);
-                    } else {
-                        WinRedirect.setLogLevel(2);
+                    if (WinRedirect.isSupported()) {
+                        if (debugMode.isSelected()) {
+                            WinRedirect.setLogLevel(1);
+                        } else {
+                            WinRedirect.setLogLevel(2);
+                        }
                     }
                 }
             });

@@ -4,6 +4,7 @@ import net.java.mproxy.Proxy;
 
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
+import javax.swing.text.JTextComponent;
 import java.awt.*;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -14,6 +15,7 @@ import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -64,63 +66,85 @@ public class I18n {
         }
     }
 
-    static WeakHashMap<Object, String> links = new WeakHashMap<>();
-    static WeakHashMap<Component, String> tooltipLinks = new WeakHashMap<>();
+    private static class KeyAndConsumer {
+        final String key;
+        final BiConsumer<Object, String> consumer;
+
+        @SuppressWarnings("unchecked")
+        KeyAndConsumer(String key, BiConsumer<?, String> consumer) {
+            this.key = key;
+            this.consumer = (BiConsumer<Object, String>) consumer;
+        }
+    }
+
+    static WeakHashMap<Object, KeyAndConsumer> links = new WeakHashMap<>();
+
+    static WeakHashMap<Object, KeyAndConsumer> tooltipLinks = new WeakHashMap<>();
 
     public static void update() {
-        for (Map.Entry<Object, String> e : links.entrySet()) {
-            if (e.getKey() instanceof JLabel jLabel) {
-                jLabel.setText(get(e.getValue()));
-            }
-            if (e.getKey() instanceof AbstractButton abstractButton) {
-                abstractButton.setText(get(e.getValue()));
-            }
-            if (e.getKey() instanceof TitledBorder titledBorder) {
-                titledBorder.setTitle(get(e.getValue()));
-            }
-            if (e.getKey() instanceof UITab tab) {
-                tab.getOwner().setTitleAt(tab.getIndex(), get(e.getValue()));
-            }
+        for (Map.Entry<Object, KeyAndConsumer> e : links.entrySet()) {
+            KeyAndConsumer keyAndConsumer = e.getValue();
+            Object component = e.getKey();
+            keyAndConsumer.consumer.accept(component, keyAndConsumer.key);
         }
-        for (Map.Entry<Component, String> e : tooltipLinks.entrySet()) {
-            if (e.getKey() instanceof JLabel jLabel) {
-                jLabel.setToolTipText(get(e.getValue()));
-            }
-            if (e.getKey() instanceof AbstractButton abstractButton) {
-                abstractButton.setToolTipText(get(e.getValue()));
-            }
+        for (Map.Entry<Object, KeyAndConsumer> e : tooltipLinks.entrySet()) {
+            KeyAndConsumer keyAndConsumer = e.getValue();
+            Object component = e.getKey();
+            keyAndConsumer.consumer.accept(component, keyAndConsumer.key);
         }
     }
 
     public static void link(UITab tab, final String key) {
-        tab.getOwner().setTitleAt(tab.getIndex(), get(key));
-        links.put(tab, key);
+        BiConsumer<UITab, String> consumer = (t, s) -> t.getOwner().setTitleAt(t.getIndex(), get(s));
+        links.put(tab, new KeyAndConsumer(key, consumer));
+        consumer.accept(tab, key);
     }
 
     public static void link(TitledBorder border, final String key) {
-        border.setTitle(get(key));
-        links.put(border, key);
+        BiConsumer<TitledBorder, String> consumer = (t, s) -> t.setTitle(get(s));
+        links.put(border, new KeyAndConsumer(key, consumer));
+        consumer.accept(border, key);
+    }
+
+    public static void link(JLabel component, final String key, BiConsumer<JLabel, String> consumer) {
+        links.put(component, new KeyAndConsumer(key, consumer));
+        consumer.accept(component, key);
     }
 
     public static void link(Component component, final String key) {
         if (component instanceof JLabel jLabel) {
-            jLabel.setText(get(key));
-            links.put(component, key);
+            BiConsumer<JLabel, String> consumer = (t, s) -> t.setText(get(s));
+            links.put(jLabel, new KeyAndConsumer(key, consumer));
+            consumer.accept(jLabel, key);
         }
         if (component instanceof AbstractButton abstractButton) {
-            abstractButton.setText(get(key));
-            links.put(component, key);
+            BiConsumer<AbstractButton, String> consumer = (t, s) -> t.setText(get(s));
+            links.put(abstractButton, new KeyAndConsumer(key, consumer));
+            consumer.accept(abstractButton, key);
         }
+    }
+
+    public static void link(MenuItem menuItem, final String key) {
+        BiConsumer<MenuItem, String> consumer = (t, s) -> t.setLabel(get(s));
+        links.put(menuItem, new KeyAndConsumer(key, consumer));
+        consumer.accept(menuItem, key);
     }
 
     public static void linkTooltip(Component component, final String key) {
         if (component instanceof JLabel jLabel) {
-            jLabel.setToolTipText(get(key));
-            tooltipLinks.put(component, key);
+            BiConsumer<JLabel, String> consumer = (t, s) -> t.setToolTipText(get(s));
+            tooltipLinks.put(component, new KeyAndConsumer(key, consumer));
+            consumer.accept(jLabel, key);
         }
         if (component instanceof AbstractButton abstractButton) {
-            abstractButton.setToolTipText(get(key));
-            tooltipLinks.put(component, key);
+            BiConsumer<AbstractButton, String> consumer = (t, s) -> t.setToolTipText(get(s));
+            tooltipLinks.put(component, new KeyAndConsumer(key, consumer));
+            consumer.accept(abstractButton, key);
+        }
+        if (component instanceof JTextComponent jTextComponent) {
+            BiConsumer<JTextComponent, String> consumer = (t, s) -> t.setToolTipText(get(s));
+            tooltipLinks.put(component, new KeyAndConsumer(key, consumer));
+            consumer.accept(jTextComponent, key);
         }
     }
 

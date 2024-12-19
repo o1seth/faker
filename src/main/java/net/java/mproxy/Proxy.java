@@ -165,6 +165,9 @@ public class Proxy {
 //        startProxy();
     }
 
+    public static boolean isStarted() {
+        return currentProxyServer != null;
+    }
 
     public static void startProxy() {
         if (currentProxyServer != null) {

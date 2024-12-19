@@ -45,7 +45,7 @@ public class AccountsTab extends UITab {
         int gridy = 0;
         {
             JLabel infoLabel = new JLabel();
-            I18n.link(infoLabel, "tab.accounts.description.line1");
+            I18n.link(infoLabel, "tab.accounts.description.line1", (t, s) -> t.setText("<html><p>" + I18n.get("tab.accounts.description.line1") + "</p></html>"));
             GBC.create(body).grid(0, gridy++).weightx(1).insets(BORDER_PADDING, BORDER_PADDING, 0, BORDER_PADDING).fill(GBC.HORIZONTAL).add(infoLabel);
         }
         {

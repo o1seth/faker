@@ -22,6 +22,7 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.image.BufferedImage;
+import java.net.InetSocketAddress;
 import java.net.URL;
 import java.util.ArrayList;
 
@@ -55,7 +56,7 @@ public class GeneralTab extends UITab {
     JTextField serverAddress;
 
     JComboBox<Account> accounts;
-    //    JLabel stateLabel;
+    JLabel stateLabel;
     JButton startButton;
     JButton pauseButton;
 
@@ -98,10 +99,6 @@ public class GeneralTab extends UITab {
         JLabel title = new JLabel("Faker");
         title.setFont(title.getFont().deriveFont(30F));
         GBC.create(header).grid(1, 0).weightx(1).width(0).insets(BORDER_PADDING, 0, 0, 0).anchor(GBC.CENTER).add(title);
-
-//        JLabel copyright = new JLabel("©© © RK_01 & Lenni0451");
-//        GBC.create(header).grid(2, 0).width(0).insets(BORDER_PADDING, 0, 0, BORDER_PADDING).anchor(GBC.NORTHEAST).add(copyright);
-
         parent.add(header, BorderLayout.NORTH);
     }
 
@@ -233,7 +230,6 @@ public class GeneralTab extends UITab {
                             leftPanel.setVisible(false);
                             swap.setVisible(false);
                             leftStatus.setText("");
-                            System.out.println("LEFT CLOSE");
                         }
                     }
 
@@ -257,6 +253,12 @@ public class GeneralTab extends UITab {
     }
 
     private void addFooter(final Container parent) {
+        JPanel footer = new JPanel();
+        footer.setLayout(new GridBagLayout());
+
+        this.stateLabel = new JLabel("");
+        this.stateLabel.setVisible(false);
+        GBC.create(footer).grid(0, 0).weightx(1).insets(0, BORDER_PADDING, 0, BORDER_PADDING).anchor(GBC.WEST).fill(GBC.HORIZONTAL).add(this.stateLabel);
 
 
         this.startButton = new JButton();
@@ -285,18 +287,23 @@ public class GeneralTab extends UITab {
             });
             this.pauseButton.setEnabled(false);
         }
-        JPanel footer = new JPanel();
-        footer.setLayout(new GridLayout(1, 2, BORDER_PADDING, 0));
-        footer.add(this.startButton);
+        JPanel buttons = new JPanel();
+        buttons.setLayout(new GridLayout(1, 2, BORDER_PADDING, 0));
+        buttons.add(this.startButton);
         if (this.pauseButton != null) {
-            footer.add(this.pauseButton);
+            buttons.add(this.pauseButton);
         }
 
         JPanel padding = new JPanel();
         padding.setLayout(new GridBagLayout());
-        GBC.create(padding).grid(0, 0).weightx(1).insets(0, BORDER_PADDING, BORDER_PADDING, BORDER_PADDING).fill(GBC.HORIZONTAL).add(footer);
+//        GBC.create(padding).grid(0, 0).weightx(1).insets(0, BORDER_PADDING, BORDER_PADDING, BORDER_PADDING).fill(GBC.HORIZONTAL).add(buttons);
+//
+//        parent.add(padding, BorderLayout.SOUTH);
 
-        parent.add(padding, BorderLayout.SOUTH);
+        GBC.create(footer).grid(0, 1).weightx(1).insets(0, BORDER_PADDING, BORDER_PADDING, BORDER_PADDING).anchor(GBC.WEST).fill(GBC.HORIZONTAL).add(buttons);
+
+        parent.add(footer, BorderLayout.SOUTH);
+
 
     }
 
@@ -316,13 +323,11 @@ public class GeneralTab extends UITab {
     }
 
     private void updateStateLabel() {
-//        if (Proxy.getConfig().getBindAddress() instanceof InetSocketAddress isa) {
-//            this.stateLabel.setText(I18n.get("tab.general.state.running", "1.7+", "127.0.0.1:" + isa.getPort()));
-//        } else {
-//            this.stateLabel.setText(I18n.get("tab.general.state.running", "1.7+", AddressUtil.toString(Proxy.getConfig().getBindAddress())));
-//        }
-//        this.stateLabel.setForeground(Color.GREEN);
-//        this.stateLabel.setVisible(true);
+
+        this.stateLabel.setText(I18n.get("tab.general.state.running", Proxy.proxyAddress.getHostName() + ":" + Proxy.proxyAddress.getPort()));
+
+        this.stateLabel.setForeground(Color.GREEN);
+        this.stateLabel.setVisible(true);
     }
 
     private void start() {
@@ -416,7 +421,7 @@ public class GeneralTab extends UITab {
         Timer timer = new Timer(delay, new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-//                this.stateLabel.setVisible(false);
+                GeneralTab.this.stateLabel.setVisible(false);
                 GeneralTab.this.startButton.setEnabled(true);
                 I18n.link(GeneralTab.this.startButton, "tab.general.state.start");
                 GeneralTab.this.setComponentsEnabled(true);
