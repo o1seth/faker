@@ -1,6 +1,7 @@
 package net.java.faker.ui;
 
 import net.java.faker.Proxy;
+import net.java.faker.util.Util;
 
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
@@ -12,6 +13,7 @@ import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
@@ -184,7 +186,11 @@ public class I18n {
     }
 
     private static Map<Path, byte[]> getFilesInDirectory(final String assetPath) throws IOException, URISyntaxException {
-        final Path path = getPath(I18n.class.getClassLoader().getResource(assetPath).toURI());
+        URL url = I18n.class.getClassLoader().getResource(assetPath);
+        if (url == null) {
+            return null;
+        }
+        final Path path = getPath(url.toURI());
         return getFilesInPath(path);
     }
 

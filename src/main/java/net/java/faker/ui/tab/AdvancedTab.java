@@ -31,6 +31,7 @@ public class AdvancedTab extends UITab {
     JCheckBox blockTraffic;
     JComboBox<NetworkInterface> networkAdapters;
     ActionListener networkAdapterListener;
+    private NetworkInterface lastSelectedAdapter;
 
     public AdvancedTab(final Window frame) {
         super(frame, "advanced");
@@ -116,18 +117,13 @@ public class AdvancedTab extends UITab {
                         }
                     }
                 });
-                networkAdapterListener = new ActionListener() {
-                    NetworkInterface lastSelected;
-
-                    @Override
-                    public void actionPerformed(ActionEvent e) {
-                        if (networkAdapters.getSelectedItem() instanceof NetworkInterface ni) {
-                            if (!ni.equalsNameAndMac(lastSelected)) {
-                                if (ni.hasInternetAccess()) {
-                                    SwingUtilities.invokeLater(() -> Window.showWarning(String.format(I18n.get("tab.advanced.error.internet_adapter"), ni)));
-                                }
-                                lastSelected = ni;
+                networkAdapterListener = e -> {
+                    if (networkAdapters.getSelectedItem() instanceof NetworkInterface ni) {
+                        if (!ni.equalsNameAndMac(lastSelectedAdapter)) {
+                            if (ni.hasInternetAccess()) {
+                                SwingUtilities.invokeLater(() -> Window.showWarning(String.format(I18n.get("tab.advanced.error.internet_adapter"), ni)));
                             }
+                            lastSelectedAdapter = ni;
                         }
                     }
                 };
@@ -153,15 +149,12 @@ public class AdvancedTab extends UITab {
 
         if (WinRedirect.isSupported() && (System.console() != null || showDebug)) {
             JCheckBox debugMode = new JCheckBox("print debug");
-            debugMode.addActionListener(new ActionListener() {
-                @Override
-                public void actionPerformed(ActionEvent e) {
-                    if (WinRedirect.isSupported()) {
-                        if (debugMode.isSelected()) {
-                            WinRedirect.setLogLevel(1);
-                        } else {
-                            WinRedirect.setLogLevel(2);
-                        }
+            debugMode.addActionListener(e -> {
+                if (WinRedirect.isSupported()) {
+                    if (debugMode.isSelected()) {
+                        WinRedirect.setLogLevel(1);
+                    } else {
+                        WinRedirect.setLogLevel(2);
                     }
                 }
             });
