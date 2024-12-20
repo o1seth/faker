@@ -1,10 +1,22 @@
 plugins {
     id 'java'
     id 'com.github.johnrengelman.shadow' version '7.1.2'
+    id 'edu.sc.seis.launch4j' version '3.0.5'
 }
 
-group = 'org.example'
-version = '1.0-SNAPSHOT'
+group = 'net.java'
+version = '1.0'
+
+launch4j {
+    manifest = "${project.projectDir}/manifest.xml"
+    jarTask = project.tasks.shadowJar
+    outfile = 'faker-' + "${project.version}" + '.exe'
+    headerType = 'gui'
+    productName = 'Faker'
+    mutexName = 'faker_mutex'
+    jreMinVersion = '17'
+}
+
 
 repositories {
     mavenCentral()
@@ -22,6 +34,14 @@ repositories {
         }
     }
 }
+jar {
+    manifest {
+        attributes(
+                'Main-Class': 'net.java.faker.Proxy',
+                'SplashScreen-Image': 'assets/faker/icon/splash.png'
+        )
+    }
+}
 
 dependencies {
     testImplementation platform('org.junit:junit-bom:5.9.1')
@@ -29,14 +49,11 @@ dependencies {
     implementation 'com.formdev:flatlaf:3.5.4'
     implementation "net.raphimc.netminecraft:all:3.0.1"
     implementation 'net.raphimc:MinecraftAuth:4.1.1'
-    implementation 'org.apache.logging.log4j:log4j-core:2.24.1'
-    implementation 'org.apache.logging.log4j:log4j-api:2.24.1'
-//    implementation 'org.apache.logging.log4j:log4j-slf4j-impl:2.24.1'
-    implementation 'org.slf4j:slf4j-nop:2.0.16'
+    implementation 'org.slf4j:slf4j-simple:2.0.16'
     implementation 'com.mojang:authlib:3.16.29'
     implementation 'org.apache.commons:commons-lang3:3.17.0'
     implementation 'com.google.code.findbugs:jsr305:3.0.2'
-    implementation group: 'org.apache.directory.server', name: 'apacheds-protocol-dhcp', version: '2.0.0.AM27'
+//  implementation group: 'org.apache.directory.server', name: 'apacheds-protocol-dhcp', version: '2.0.0.AM27'
 }
 
 test {

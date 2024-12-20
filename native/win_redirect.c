@@ -2256,7 +2256,7 @@ err:
 	return 0;
 }
 #include <jni.h>
-JNIEXPORT jlong JNICALL Java_net_java_mproxy_WinRedirect_redirectStart(JNIEnv* env, jclass cl, jint redirect_port, jstring jFilter, jint layer) {
+JNIEXPORT jlong JNICALL Java_net_java_faker_WinRedirect_redirectStart(JNIEnv* env, jclass cl, jint redirect_port, jstring jFilter, jint layer) {
 	if (jFilter != NULL) {
 		const char* filter = (*env)->GetStringUTFChars(env, jFilter, 0);
 		jlong jRedirect = (jlong)redirect_start((UINT16)redirect_port, (char*)filter, (char)layer);
@@ -2266,27 +2266,27 @@ JNIEXPORT jlong JNICALL Java_net_java_mproxy_WinRedirect_redirectStart(JNIEnv* e
 	return (jlong)redirect_start((UINT16)redirect_port, NULL, (char)layer);
 }
 
-JNIEXPORT void JNICALL Java_net_java_mproxy_WinRedirect_redirectStop(JNIEnv* env, jclass cl, jlong jRedirect) {
+JNIEXPORT void JNICALL Java_net_java_faker_WinRedirect_redirectStop(JNIEnv* env, jclass cl, jlong jRedirect) {
 	redirect_stop((PREDIRECT)jRedirect);
 }
 
-JNIEXPORT void JNICALL Java_net_java_mproxy_WinRedirect_redirectPause(JNIEnv* env, jclass cl, jlong jRedirect) {
+JNIEXPORT void JNICALL Java_net_java_faker_WinRedirect_redirectPause(JNIEnv* env, jclass cl, jlong jRedirect) {
 	redirect_pause((PREDIRECT)jRedirect);
 }
 
-JNIEXPORT void JNICALL Java_net_java_mproxy_WinRedirect_redirectResume(JNIEnv* env, jclass cl, jlong jRedirect) {
+JNIEXPORT void JNICALL Java_net_java_faker_WinRedirect_redirectResume(JNIEnv* env, jclass cl, jlong jRedirect) {
 	redirect_resume((PREDIRECT)jRedirect);
 }
 
-JNIEXPORT jboolean JNICALL Java_net_java_mproxy_WinRedirect_redirectAddSkipPort(JNIEnv* env, jclass cl, jlong jRedirect, jint port) {
+JNIEXPORT jboolean JNICALL Java_net_java_faker_WinRedirect_redirectAddSkipPort(JNIEnv* env, jclass cl, jlong jRedirect, jint port) {
 	return redirect_add_skip_port((PREDIRECT)jRedirect, (UINT16)port);
 }
 
-JNIEXPORT jboolean JNICALL Java_net_java_mproxy_WinRedirect_redirectRemoveSkipPort(JNIEnv* env, jclass cl, jlong jRedirect, jint port) {
+JNIEXPORT jboolean JNICALL Java_net_java_faker_WinRedirect_redirectRemoveSkipPort(JNIEnv* env, jclass cl, jlong jRedirect, jint port) {
 	return redirect_remove_skip_port((PREDIRECT)jRedirect, (UINT16)port);
 }
 
-JNIEXPORT jboolean JNICALL Java_net_java_mproxy_WinRedirect_redirectGetRealAddresses(JNIEnv* env, jclass cl, jlong jRedirect, jstring jip, jint port, jobjectArray out) {
+JNIEXPORT jboolean JNICALL Java_net_java_faker_WinRedirect_redirectGetRealAddresses(JNIEnv* env, jclass cl, jlong jRedirect, jstring jip, jint port, jobjectArray out) {
 	if (jip == NULL || out == NULL) {
 		return FALSE;
 	}
@@ -2309,11 +2309,11 @@ JNIEXPORT jboolean JNICALL Java_net_java_mproxy_WinRedirect_redirectGetRealAddre
 	return ret;
 }
 
-JNIEXPORT jint JNICALL Java_net_java_mproxy_WinRedirect_redirectGetActiveConnectionsCount(JNIEnv* env, jclass cl, jlong jRedirect) {
+JNIEXPORT jint JNICALL Java_net_java_faker_WinRedirect_redirectGetActiveConnectionsCount(JNIEnv* env, jclass cl, jlong jRedirect) {
 	return redirect_get_active_connections_count((PREDIRECT)jRedirect);
 }
 
-JNIEXPORT jlong JNICALL Java_net_java_mproxy_WinRedirect_mdnsDisable(JNIEnv* env, jclass cl, jstring jip) {
+JNIEXPORT jlong JNICALL Java_net_java_faker_WinRedirect_mdnsDisable(JNIEnv* env, jclass cl, jstring jip) {
 	if (jip != NULL) {
 		const char* ip = (*env)->GetStringUTFChars(env, jip, 0);
 		jlong jRedirect = (jlong)mdns_disable((char*)ip);
@@ -2323,20 +2323,20 @@ JNIEXPORT jlong JNICALL Java_net_java_mproxy_WinRedirect_mdnsDisable(JNIEnv* env
 	return (jlong)mdns_disable(NULL);
 }
 
-JNIEXPORT jboolean JNICALL Java_net_java_mproxy_WinRedirect_mdnsRestore(JNIEnv* env, jclass cl, jlong jmdns) {
+JNIEXPORT jboolean JNICALL Java_net_java_faker_WinRedirect_mdnsRestore(JNIEnv* env, jclass cl, jlong jmdns) {
 	return mdns_restore((PMDNS)jmdns);
 }
 
 
-JNIEXPORT jboolean JNICALL Java_net_java_mproxy_WinRedirect_enableTtlFix(JNIEnv* env, jclass cl) {
+JNIEXPORT jboolean JNICALL Java_net_java_faker_WinRedirect_enableTtlFix(JNIEnv* env, jclass cl) {
 	return enable_ttl_fix();
 }
 
-JNIEXPORT jboolean JNICALL Java_net_java_mproxy_WinRedirect_disableTtlFix(JNIEnv* env, jclass cl) {
+JNIEXPORT jboolean JNICALL Java_net_java_faker_WinRedirect_disableTtlFix(JNIEnv* env, jclass cl) {
 	return disable_ttl_fix();
 }
 
-JNIEXPORT jlong JNICALL Java_net_java_mproxy_WinRedirect_portForwardStart(JNIEnv* env, jclass cl, jstring listenIp, jstring listenStartIp, jstring listenEndIp, jstring toIp, jstring thisIp, jintArray skipPorts) {
+JNIEXPORT jlong JNICALL Java_net_java_faker_WinRedirect_portForwardStart(JNIEnv* env, jclass cl, jstring listenIp, jstring listenStartIp, jstring listenEndIp, jstring toIp, jstring thisIp, jintArray skipPorts) {
 	if (listenIp == 0 || listenStartIp == 0 || listenEndIp == 0 || toIp == 0 || thisIp == 0) {
 		error("null");
 		return 0;
@@ -2377,11 +2377,11 @@ cleanup:
 	(*env)->ReleaseStringUTFChars(env, thisIp, this_ip);
 	return port_forward;
 }
-JNIEXPORT jboolean JNICALL Java_net_java_mproxy_WinRedirect_portForwardStop(JNIEnv* env, jclass cl, jlong jportForward) {
+JNIEXPORT jboolean JNICALL Java_net_java_faker_WinRedirect_portForwardStop(JNIEnv* env, jclass cl, jlong jportForward) {
 	return port_forward_stop((PFORWARD)jportForward);
 
 }
-JNIEXPORT jlong JNICALL Java_net_java_mproxy_WinRedirect_firewallStart(JNIEnv* env, jclass cl, jstring jfilter, jint layer) {
+JNIEXPORT jlong JNICALL Java_net_java_faker_WinRedirect_firewallStart(JNIEnv* env, jclass cl, jstring jfilter, jint layer) {
 	if (jfilter == 0) {
 		error("null");
 		return 0;
@@ -2394,19 +2394,19 @@ JNIEXPORT jlong JNICALL Java_net_java_mproxy_WinRedirect_firewallStart(JNIEnv* e
 	return block_ip;
 }
 
-JNIEXPORT jboolean JNICALL Java_net_java_mproxy_WinRedirect_firewallStop(JNIEnv* env, jclass cl, jlong jblockIp) {
+JNIEXPORT jboolean JNICALL Java_net_java_faker_WinRedirect_firewallStop(JNIEnv* env, jclass cl, jlong jblockIp) {
 	return block_ip_stop((PBLOCK_IP)jblockIp);
 }
 
-JNIEXPORT jstring JNICALL Java_net_java_mproxy_WinRedirect_getError(JNIEnv* env, jclass cl) {
+JNIEXPORT jstring JNICALL Java_net_java_faker_WinRedirect_getError(JNIEnv* env, jclass cl) {
 	return (*env)->NewStringUTF(env, get_error());
 }
 
-JNIEXPORT void JNICALL Java_net_java_mproxy_WinRedirect_resetError(JNIEnv* env, jclass cl) {
+JNIEXPORT void JNICALL Java_net_java_faker_WinRedirect_resetError(JNIEnv* env, jclass cl) {
 	reset_error();
 }
 
-JNIEXPORT void JNICALL Java_net_java_mproxy_WinRedirect_setLogLevel(JNIEnv* env, jclass cl,  jint level) {
+JNIEXPORT void JNICALL Java_net_java_faker_WinRedirect_setLogLevel(JNIEnv* env, jclass cl,  jint level) {
 	set_log_level(level);
 }
 
