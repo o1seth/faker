@@ -9,12 +9,21 @@ import java.io.IOException;
 import java.net.Inet4Address;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
+import java.util.Arrays;
 
 public class WinRedirect {
     private static final boolean isSupported;
 
     static {
         isSupported = initNative();
+    }
+
+    private static boolean isEquals(File file, byte[] bytes) {
+        try {
+            return Arrays.equals(Files.readAllBytes(file.toPath()), bytes);
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 
     private static boolean initNative() {
@@ -24,7 +33,7 @@ public class WinRedirect {
                 return false;
             }
             File dllFile = new File(Proxy.getFakerDirectory(), "win_redirect.dll");
-            if (!dllFile.exists() || dllFile.length() != dllBytes.length) {
+            if (!dllFile.exists() || dllFile.length() != dllBytes.length || !isEquals(dllFile, dllBytes)) {
                 try {
                     Files.write(dllFile.toPath(), dllBytes);
                 } catch (IOException e) {

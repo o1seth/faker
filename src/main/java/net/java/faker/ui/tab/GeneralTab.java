@@ -213,7 +213,7 @@ public class GeneralTab extends UITab {
                             rightConnection = login.getConnection();
                             swap.setVisible(true);
                             rightPanel.setVisible(true);
-                            rightStatus.setText(leftConnection.getRealSrcAddress().getAddress().getHostAddress());
+                            rightStatus.setText(rightConnection.getRealSrcAddress().getAddress().getHostAddress());
                         }
                     } else if (e instanceof DisconnectEvent disconnect) {
                         if (disconnect.getConnection() == rightConnection) {
