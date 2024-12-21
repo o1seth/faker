@@ -306,7 +306,7 @@ public class Proxy {
         if (!WinRedirect.isSupported()) {
             return;
         }
-        mdns = WinRedirect.mdnsDisable(null);
+        mdns = WinRedirect.mdnsLlmnrDisable(null);
     }
 
     private static void mdnsRestore() {
@@ -314,7 +314,7 @@ public class Proxy {
             return;
         }
         if (mdns != 0) {
-            WinRedirect.mdnsRestore(mdns);
+            WinRedirect.mdnsLlmnrRestore(mdns);
             mdns = 0;
         }
     }

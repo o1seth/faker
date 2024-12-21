@@ -1346,7 +1346,7 @@ DWORD WINAPI disable_mdns_thread(LPVOID lpParam)
 	return 0;
 }
 
-__declspec(dllexport) PMDNS mdns_disable(char* local_ip) {//etc 192.168.137.1
+__declspec(dllexport) PMDNS mdns_llmnr_disable(char* local_ip) {//etc 192.168.137.1
 
 	PMDNS mdns = calloc(1, sizeof(MDNS));
 	if (mdns == NULL) {
@@ -1355,11 +1355,11 @@ __declspec(dllexport) PMDNS mdns_disable(char* local_ip) {//etc 192.168.137.1
 	}
 
 	if (local_ip == NULL) {
-		mdns->windivert_handle = WinDivertOpen("udp.SrcPort == 5353", WINDIVERT_LAYER_NETWORK, MDNS_PRIORITY, 0);
+		mdns->windivert_handle = WinDivertOpen("udp.SrcPort == 5353 or udp.SrcPort == 5355", WINDIVERT_LAYER_NETWORK, MDNS_PRIORITY, 0);
 	}
 	else {
 		char buf[128];
-		sprintf(buf, "ip.SrcAddr == %s and udp.SrcPort == 5353", local_ip);
+		sprintf(buf, "ip.SrcAddr == %s and (udp.SrcPort == 5353 or udp.SrcPort == 5355)", local_ip);
 		mdns->windivert_handle = WinDivertOpen(buf, WINDIVERT_LAYER_NETWORK, MDNS_PRIORITY, 0);
 	}
 
@@ -2317,17 +2317,17 @@ JNIEXPORT jint JNICALL Java_net_java_faker_WinRedirect_redirectGetActiveConnecti
 	return redirect_get_active_connections_count((PREDIRECT)jRedirect);
 }
 
-JNIEXPORT jlong JNICALL Java_net_java_faker_WinRedirect_mdnsDisable(JNIEnv* env, jclass cl, jstring jip) {
+JNIEXPORT jlong JNICALL Java_net_java_faker_WinRedirect_mdnsLlmnrDisable(JNIEnv* env, jclass cl, jstring jip) {
 	if (jip != NULL) {
 		const char* ip = (*env)->GetStringUTFChars(env, jip, 0);
-		jlong jRedirect = (jlong)mdns_disable((char*)ip);
+		jlong jRedirect = (jlong)mdns_llmnr_disable((char*)ip);
 		(*env)->ReleaseStringUTFChars(env, jip, ip);
 		return jRedirect;
 	}
-	return (jlong)mdns_disable(NULL);
+	return (jlong)mdns_llmnr_disable(NULL);
 }
 
-JNIEXPORT jboolean JNICALL Java_net_java_faker_WinRedirect_mdnsRestore(JNIEnv* env, jclass cl, jlong jmdns) {
+JNIEXPORT jboolean JNICALL Java_net_java_faker_WinRedirect_mdnsLlmnrRestore(JNIEnv* env, jclass cl, jlong jmdns) {
 	return mdns_restore((PMDNS)jmdns);
 }
 
@@ -2413,23 +2413,3 @@ JNIEXPORT void JNICALL Java_net_java_faker_WinRedirect_resetError(JNIEnv* env, j
 JNIEXPORT void JNICALL Java_net_java_faker_WinRedirect_setLogLevel(JNIEnv* env, jclass cl, jint level) {
 	set_log_level(level);
 }
-
-
-//int main(int argc, char* argv[]) {
-//
-//	mdns_disable("192.168.137.1");
-//	PFORWARD forward = port_forward_start("192.168.137.1", "192.168.137.2", "192.168.137.254", "192.168.0.1", "192.168.0.120", 0, 0);
-//	block_ip_start("192.168.0.1", "192.168.0.255", "192.168.137.1", "192.168.137.255");
-//	//if (argc < 3) {
-//	//	return -1;
-//	//}
-//	//printf("%s\n", argv[1]);
-//	//printf("%s\n", argv[2]);
-//
-//	//PREDIRECT r = redirect_start(atoi(argv[1]), argv[2], WINDIVERT_LAYER_NETWORK);
-//
-//	//WinDivertOpen("true", WINDIVERT_LAYER_NETWORK_FORWARD, 100, 0);
-//
-//	getchar();
-//	printf("End.");
-//}

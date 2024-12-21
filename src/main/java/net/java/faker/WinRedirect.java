@@ -116,9 +116,9 @@ public class WinRedirect {
 
     public static native String getError();
 
-    public static native long mdnsDisable(String ip);
+    public static native long mdnsLlmnrDisable(String ip);
 
-    public static native boolean mdnsRestore(long mdns);
+    public static native boolean mdnsLlmnrRestore(long mdns);
 
     public static native boolean enableTtlFix();
 

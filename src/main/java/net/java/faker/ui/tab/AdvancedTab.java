@@ -15,6 +15,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.net.Inet4Address;
 import java.util.List;
 
 import static net.java.faker.ui.Window.BODY_BLOCK_PADDING;
@@ -213,11 +214,9 @@ public class AdvancedTab extends UITab {
                 }
                 if (firstCall) {
                     if (Proxy.getConfig().targetAdapter.get() == null) {
-                        for (NetworkInterface ni : interfaces) {
-                            if (ni.getDisplayName().equals("Microsoft Wi-Fi Direct Virtual Adapter #2")) {
-                                networkAdapters.setSelectedItem(ni);
-                                break;
-                            }
+                        NetworkInterface potentialInterface = findPotentialWifiHotspotInterface(interfaces);
+                        if (potentialInterface != null) {
+                            networkAdapters.setSelectedItem(potentialInterface);
                         }
                     } else if (Proxy.getConfig().targetAdapter.get().equals("null")) {
                         networkAdapters.setSelectedItem(0);
@@ -255,4 +254,37 @@ public class AdvancedTab extends UITab {
         }
     }
 
+    private static NetworkInterface findPotentialWifiHotspotInterface(List<NetworkInterface> interfaces) {
+        for (NetworkInterface ni : interfaces) {
+            if (ni.getDisplayName().equals("Microsoft Wi-Fi Direct Virtual Adapter #2") || ni.getDisplayName().equals("Microsoft Wi-Fi Direct Virtual Adapter #4")) {
+                Inet4Address ipv4 = ni.getFirstIpv4Address();
+                if (ipv4.getHostAddress().equals("192.168.137.1")) {
+                    return ni;
+                }
+            }
+        }
+
+        //windows 10
+        for (NetworkInterface ni : interfaces) {
+            if (ni.getDisplayName().equals("Microsoft Wi-Fi Direct Virtual Adapter #2")) {
+                return ni;
+            }
+        }
+        //windows 11
+        for (NetworkInterface ni : interfaces) {
+            if (ni.getDisplayName().equals("Microsoft Wi-Fi Direct Virtual Adapter #4")) {
+                return ni;
+            }
+        }
+
+        for (NetworkInterface ni : interfaces) {
+            if (ni.getDisplayName().equals("Microsoft Wi-Fi Direct Virtual Adapter")) {
+                Inet4Address ipv4 = ni.getFirstIpv4Address();
+                if (ipv4.getHostAddress().equals("192.168.137.1")) {
+                    return ni;
+                }
+            }
+        }
+        return null;
+    }
 }
