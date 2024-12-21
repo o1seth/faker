@@ -105,7 +105,13 @@ public class Proxy {
         config = new Config(new File(getFakerDirectory(), "faker_config.json"));
         accountManager = new AccountManager(new File(getFakerDirectory(), "faker_accounts.json"));
         Window.getInstance();
+        registerEvents();
+    }
+
+    private static void registerEvents() {
+
         registerEvent(e -> {
+            //uses if block traffic or router spoof was failed for some reason
             if (e instanceof ConnectEvent event) {
                 if (event.getConnection().isRedirected()) {
                     InetAddress realSrc = event.getConnection().getRealSrcAddress().getAddress();
@@ -125,6 +131,13 @@ public class Proxy {
                 }
             }
         });
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            if (isStarted()) {
+                Logger.info("Shutdown...");
+                kickAllClients(null);
+//                stopProxy();
+            }
+        }));
     }
 
     public static boolean isStarted() {
@@ -152,25 +165,38 @@ public class Proxy {
                 }
             }
             Logger.info("Bind proxy server to " + proxyAddress);
-            startRedirect();
-            if (Proxy.getConfig().tracerouteFix.get()) {
-                enableTtlFix();
-            }
-            if (Proxy.getConfig().mdnsDisable.get()) {
-                mdnsDisable();
-            }
+
             if (Proxy.getConfig().routerSpoof.get()) {
                 startPortForward();
             }
             if (Proxy.getConfig().blockTraffic.get()) {
                 startBlockTraffic();
             }
+
+            startRedirect();
+
+            if (Proxy.getConfig().tracerouteFix.get()) {
+                enableTtlFix();
+            }
+            if (Proxy.getConfig().mdnsDisable.get()) {
+                mdnsDisable();
+            }
+
             event(new ProxyStateEvent(ProxyStateEvent.State.STARTED));
 //            currentProxyServer.getChannel().closeFuture().syncUninterruptibly();
         } catch (Throwable e) {
             event(new ProxyStateEvent(ProxyStateEvent.State.STOPPED));
             currentProxyServer = null;
             throw e;
+        }
+    }
+
+    public static void kickAllClients(String reason) {
+        for (Channel channel : CLIENT_CHANNELS) {
+            try {
+                ProxyConnection.fromChannel(channel).kickClient(reason);
+            } catch (Throwable ignored) {
+            }
         }
     }
 
@@ -194,12 +220,7 @@ public class Proxy {
             currentProxyServer.getChannel().close();
             currentProxyServer = null;
 
-            for (Channel channel : CLIENT_CHANNELS) {
-                try {
-                    ProxyConnection.fromChannel(channel).kickClient("Proxy stopped");
-                } catch (Throwable ignored) {
-                }
-            }
+            kickAllClients("Proxy stopped");
             event(new ProxyStateEvent(ProxyStateEvent.State.STOPPED));
         }
     }
@@ -333,7 +354,7 @@ public class Proxy {
         }
         Inet4Address listen = NetworkUtil.getLocalAddressInSameNetworkFor(address);
         if (listen == null) {
-            Logger.error("Not found local address for " + address.getHostAddress());
+            Logger.error("(router block traffic) Not found local address for " + address.getHostAddress());
             return;
         }
 
@@ -370,16 +391,16 @@ public class Proxy {
             return;
         }
         if (targetAdapter == NetworkInterface.NULL) {
-            Logger.error("Target adapter is null");
+            Logger.error("(port forward) Target adapter is null");
             return;
         }
         if (targetAdapter.hasInternetAccess()) {
-            Logger.error("Target adapter has Internet access, skip");
+            Logger.error("(port forward) Target adapter has Internet access, skip");
             return;
         }
         InterfaceAddress listenInterfaceAddress = targetAdapter.getFirstIpv4InterfaceAddress();
         if (listenInterfaceAddress == null) {
-            Logger.error("Not found ipv4 address in target adapter");
+            Logger.error("(port forward) Not found ipv4 address in target adapter");
             return;
         }
         Inet4Address listen = (Inet4Address) listenInterfaceAddress.getAddress();
@@ -394,17 +415,17 @@ public class Proxy {
         Inet4Address end = NetworkUtil.getEnd(listen, listenInterfaceAddress.getNetworkPrefixLength());
         NetworkInterface internetInterface = NetworkUtil.getInternetInterface();
         if (internetInterface == null) {
-            Logger.error("Internet adapter not found");
+            Logger.error("(port forward) Internet adapter not found");
             return;
         }
         Inet4Address to = internetInterface.get4Gateway();
         if (to == null) {
-            Logger.error("Internet gateway not found");
+            Logger.error("(port forward) Internet gateway not found");
             return;
         }
         Inet4Address thisPC = internetInterface.getFirstIpv4Address();
         if (thisPC == null) {
-            Logger.error("This pc ipv4 not found");
+            Logger.error("(port forward) This pc ipv4 not found");
             return;
         }
         String listenIp = listen.getHostAddress();
@@ -457,12 +478,12 @@ public class Proxy {
     private static void startBlockTraffic(Inet4Address targetAddress) {
         NetworkInterface internetInterface = NetworkUtil.getInternetInterface();
         if (internetInterface == null) {
-            Logger.error("Internet adapter not found");
+            Logger.error("(block traffic) Internet adapter not found");
             return;
         }
         InterfaceAddress internetInterfaceAddress = internetInterface.getFirstIpv4InterfaceAddress();
         if (internetInterfaceAddress == null) {
-            Logger.error("Internet ipv4 not found");
+            Logger.error("(block traffic) Internet ipv4 not found");
             return;
         }
         Inet4Address internet = (Inet4Address) internetInterfaceAddress.getAddress();
@@ -474,26 +495,26 @@ public class Proxy {
 
     private static void startBlockTraffic(NetworkInterface targetAdapter) {
         if (targetAdapter == NetworkInterface.NULL) {
-            Logger.error("Target adapter is null");
+            Logger.error("(block traffic) Target adapter is null");
             return;
         }
         if (targetAdapter.hasInternetAccess()) {
-            Logger.error("Target adapter has Internet access, skip");
+            Logger.error("(block traffic) Target adapter has Internet access, skip");
             return;
         }
         InterfaceAddress listenInterfaceAddress = targetAdapter.getFirstIpv4InterfaceAddress();
         if (listenInterfaceAddress == null) {
-            Logger.error("Not found ipv4 address in target adapter");
+            Logger.error("(block traffic) Not found ipv4 address in target adapter");
             return;
         }
         NetworkInterface internetInterface = NetworkUtil.getInternetInterface();
         if (internetInterface == null) {
-            Logger.error("Internet adapter not found");
+            Logger.error("(block traffic) Internet adapter not found");
             return;
         }
         InterfaceAddress internetInterfaceAddress = internetInterface.getFirstIpv4InterfaceAddress();
         if (internetInterfaceAddress == null) {
-            Logger.error("Internet ipv4 not found");
+            Logger.error("(block traffic) Internet ipv4 not found");
             return;
         }
 
@@ -506,7 +527,7 @@ public class Proxy {
         Inet4Address fromEnd = NetworkUtil.getEnd(internet, internetInterfaceAddress.getNetworkPrefixLength());
 
         if (toStart.equals(fromStart) || toEnd.equals(fromEnd)) {
-            Logger.error("Target and Internet adapters same network");
+            Logger.error("(block traffic) Target and Internet adapters same network");
             return;
         }
         String filter = String.format("(ip.SrcAddr >= %s and ip.SrcAddr <= %s and ip.DstAddr >= %s and ip.DstAddr <= %s)", fromStart.getHostAddress(), fromEnd.getHostAddress(), toStart.getHostAddress(), toEnd.getHostAddress());

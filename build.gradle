@@ -50,7 +50,7 @@ dependencies {
     implementation "net.raphimc.netminecraft:all:3.0.1"
     implementation 'net.raphimc:MinecraftAuth:4.1.1'
     implementation 'org.slf4j:slf4j-simple:2.0.16'
-    implementation ('com.mojang:authlib:3.16.29')
+    implementation 'com.mojang:authlib:3.16.29'
     implementation 'org.apache.commons:commons-lang3:3.17.0'
     implementation 'com.google.code.findbugs:jsr305:3.0.2'
 //  implementation group: 'org.apache.directory.server', name: 'apacheds-protocol-dhcp', version: '2.0.0.AM27'

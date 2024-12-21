@@ -467,7 +467,7 @@ public class ProxyConnection extends NetClient {
         Logger.u_err("proxy kick", this, message);
 
         final ChannelFuture future;
-        if (!Proxy.getConfig().showKickErrors.get()) {
+        if (!Proxy.getConfig().showKickErrors.get() || message == null) {
             future = this.c2p.newSucceededFuture();
         } else if (this.c2pConnectionState == ConnectionState.STATUS) {
             future = this.c2p.writeAndFlush(new S2CStatusResponsePacket("{\"players\":{\"max\":0,\"online\":0},\"description\":" + new JsonPrimitive(message) + ",\"version\":{\"protocol\":-1,\"name\":\"Proxy\"}}"));

@@ -87,7 +87,6 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
             } catch (Throwable ignored) {
             }
         }
-        Proxy.getConnectedClients().remove(ctx.channel());
         Proxy.event(new DisconnectEvent(this.proxyConnection));
     }
 

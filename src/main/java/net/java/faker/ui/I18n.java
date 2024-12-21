@@ -1,16 +1,13 @@
 package net.java.faker.ui;
 
 import net.java.faker.Proxy;
-import net.java.faker.util.Util;
+import net.java.faker.util.logging.Logger;
 
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
 import javax.swing.text.JTextComponent;
 import java.awt.*;
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.UncheckedIOException;
+import java.io.*;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -28,10 +25,22 @@ public class I18n {
 
     static {
         try {
-            for (Map.Entry<Path, byte[]> entry : getFilesInDirectory("assets/faker/lang").entrySet()) {
+            Map<Path, byte[]> files = getFilesInDirectory("assets/faker/lang");
+            if (files != null) {
+                for (Map.Entry<Path, byte[]> entry : files.entrySet()) {
+                    final Properties properties = new Properties();
+                    properties.load(new InputStreamReader(new ByteArrayInputStream(entry.getValue()), StandardCharsets.UTF_8));
+                    LOCALES.put(entry.getKey().getFileName().toString().replace(".properties", ""), properties);
+                }
+            } else {
+                Logger.error("Can't find translation directory, try to load en_US...");
                 final Properties properties = new Properties();
-                properties.load(new InputStreamReader(new ByteArrayInputStream(entry.getValue()), StandardCharsets.UTF_8));
-                LOCALES.put(entry.getKey().getFileName().toString().replace(".properties", ""), properties);
+                InputStream is = I18n.class.getResourceAsStream("/assets/faker/lang/en_US.properties");
+                if (is == null) {
+                    throw new RuntimeException("Can't find any translations!");
+                }
+                properties.load(new InputStreamReader(is, StandardCharsets.UTF_8));
+                LOCALES.put("en_US", properties);
             }
         } catch (Throwable e) {
             throw new RuntimeException("Failed to load translations", e);

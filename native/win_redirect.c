@@ -501,7 +501,8 @@ PTCP_CONNECTION findConnection(PREDIRECT redirect, PWINDIVERT_IPHDR ip_header, P
 DWORD WINAPI cleanup_thread(LPVOID lpParam)
 {
 	PREDIRECT redirect = (PREDIRECT)lpParam;
-	info("Cleaner thread started");
+	HANDLE forward_handle = redirect->forward_handle;
+	debug("Cleaner thread started for %p", forward_handle);
 	HANDLE lock = redirect->connection_lock;
 	UINT64 lastCheckTime = GetTickCount64();
 
@@ -541,7 +542,7 @@ DWORD WINAPI cleanup_thread(LPVOID lpParam)
 		}
 		Sleep(200);
 	}
-	info("Cleaner thread stopped");
+	debug("Cleaner thread stopped for %p", forward_handle);
 	return 0;
 }
 
@@ -779,6 +780,9 @@ DWORD WINAPI redirect_in(LPVOID lpParam)
 	UINT32 prevAck;
 	UINT32 prevSeq;
 	PTCP_CONNECTION prev_con;
+
+	debug("Redirect %p started (%s)", redirect, layer == WINDIVERT_LAYER_NETWORK ? "network" : "network forward");
+
 	// Main loop:
 	while (TRUE)
 	{
@@ -1062,7 +1066,7 @@ DWORD WINAPI redirect_in(LPVOID lpParam)
 	}
 	CloseHandle(redirect->thread_in);
 	free(redirect);
-	debug("redirect_in end");
+	debug("Redirect %p stopped (%s)", redirect, layer == WINDIVERT_LAYER_NETWORK ? "network" : "network forward");
 	return 0;
 }
 
@@ -2105,7 +2109,7 @@ __declspec(dllexport) PFORWARD port_forward_start(char* listen_ip, char* listen_
 		forward->skip_ports_count = skip_ports_count;
 		memcpy(forward->skip_ports, skip_ports, skip_ports_count * sizeof(UINT16));
 	}
-	
+
 	forward->forward_to_addr = ip4(to_ip);
 	forward->this_machine_addr = ip4(this_ip);
 	forward->listen_addr = ip4(listen_ip);
@@ -2406,7 +2410,7 @@ JNIEXPORT void JNICALL Java_net_java_faker_WinRedirect_resetError(JNIEnv* env, j
 	reset_error();
 }
 
-JNIEXPORT void JNICALL Java_net_java_faker_WinRedirect_setLogLevel(JNIEnv* env, jclass cl,  jint level) {
+JNIEXPORT void JNICALL Java_net_java_faker_WinRedirect_setLogLevel(JNIEnv* env, jclass cl, jint level) {
 	set_log_level(level);
 }
 
