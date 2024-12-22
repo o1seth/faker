@@ -165,6 +165,54 @@ public class AdvancedTab extends UITab {
 
         GBC.create(body).grid(0, gridy++).insets(BODY_BLOCK_PADDING, BORDER_PADDING, 0, BODY_BLOCK_PADDING).fill(GBC.BOTH).weight(1, 1).add(checkboxes);
 
+        JPanel dhcpSetting = new JPanel();
+        dhcpSetting.setBorder(BorderFactory.createTitledBorder("DHCP server"));
+        dhcpSetting.setLayout(new GridLayout(0, 2, BORDER_PADDING / 3, BORDER_PADDING / 3));
+        {
+            JPanel ipAddressBody = new JPanel();
+            ipAddressBody.setLayout(new GridBagLayout());
+            JLabel ipAddressLabel = new JLabel("IP address");
+            GBC.create(ipAddressBody).grid(0, gridy++).insets(2, BORDER_PADDING, 0, 0).anchor(GBC.NORTHWEST).add(ipAddressLabel);
+
+            JTextField ipAddressField = new JTextField();
+            GBC.create(ipAddressBody).grid(0, gridy++).insets(0, BORDER_PADDING, 0, BORDER_PADDING).weightx(1).fill(GBC.HORIZONTAL).add(ipAddressField);
+            dhcpSetting.add(ipAddressBody);
+        }
+        {
+            JPanel maskBody = new JPanel();
+            maskBody.setLayout(new GridBagLayout());
+            JLabel maskLabel = new JLabel("Mask");
+            GBC.create(maskBody).grid(0, gridy++).insets(2, BORDER_PADDING, 0, 0).anchor(GBC.NORTHWEST).add(maskLabel);
+
+            JTextField maskField = new JTextField();
+            GBC.create(maskBody).grid(0, gridy++).insets(0, BORDER_PADDING, 0, BORDER_PADDING).weightx(1).fill(GBC.HORIZONTAL).add(maskField);
+            dhcpSetting.add(maskBody);
+        }
+
+        {
+            JPanel startIpBody = new JPanel();
+            startIpBody.setLayout(new GridBagLayout());
+            JLabel startIpLabel = new JLabel("Start ip");
+            GBC.create(startIpBody).grid(0, gridy++).insets(2, BORDER_PADDING, 0, 0).anchor(GBC.NORTHWEST).add(startIpLabel);
+
+            JTextField startIpField = new JTextField();
+            GBC.create(startIpBody).grid(0, gridy++).insets(0, BORDER_PADDING, 0, BORDER_PADDING).weightx(1).fill(GBC.HORIZONTAL).add(startIpField);
+            dhcpSetting.add(startIpBody);
+        }
+
+        {
+            JPanel endIpBody = new JPanel();
+            endIpBody.setLayout(new GridBagLayout());
+            JLabel endIpLabel = new JLabel("End ip");
+            GBC.create(endIpBody).grid(0, gridy++).insets(2, BORDER_PADDING, 0, 0).anchor(GBC.NORTHWEST).add(endIpLabel);
+
+            JTextField endIpField = new JTextField();
+            GBC.create(endIpBody).grid(0, gridy++).insets(0, BORDER_PADDING, 0, BORDER_PADDING).weightx(1).fill(GBC.HORIZONTAL).add(endIpField);
+            dhcpSetting.add(endIpBody);
+        }
+
+        GBC.create(body).grid(0, gridy++).insets(BODY_BLOCK_PADDING, BORDER_PADDING, 0, BODY_BLOCK_PADDING).fill(GBC.BOTH).weight(1, 1).add(dhcpSetting);
+
         parent.add(body, BorderLayout.NORTH);
     }
 

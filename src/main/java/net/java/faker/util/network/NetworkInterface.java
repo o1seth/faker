@@ -36,6 +36,10 @@ public class NetworkInterface {
         }
     }
 
+    public String getName() {
+        return this.javaInterface.getName();
+    }
+
     public String getDisplayName() {
         return this.javaInterface.getDisplayName();
     }
@@ -110,6 +114,24 @@ public class NetworkInterface {
     }
 
     public java.net.NetworkInterface getJavaInterface() {
+        return javaInterface;
+    }
+
+    public java.net.NetworkInterface getUpdatedJavaInterface() {
+        int index = javaInterface.getIndex();
+        try {
+            Enumeration<java.net.NetworkInterface> enumeration = java.net.NetworkInterface.getNetworkInterfaces();
+            while (enumeration.hasMoreElements()) {
+                java.net.NetworkInterface ni = enumeration.nextElement();
+                if (ni.getIndex() == index) {
+                    return ni;
+                }
+            }
+        } catch (Exception e) {
+            ExceptionUtil.throwException(e);
+            return null;
+        }
+
         return javaInterface;
     }
 

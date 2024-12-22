@@ -5,9 +5,10 @@ import net.java.faker.proxy.util.chat.Ints;
 import net.java.faker.util.Sys;
 
 import javax.annotation.Nonnull;
-import java.io.BufferedInputStream;
-import java.io.IOException;
+import java.io.*;
 import java.net.*;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 public class NetworkUtil {
@@ -102,6 +103,19 @@ public class NetworkUtil {
             }
         }
         return dns;
+    }
+
+    public static boolean hasInterfaceAddress(java.net.NetworkInterface networkInterface, String address) {
+        try {
+            InetAddress ip = InetAddress.getByName(address);
+            for (InterfaceAddress interfaceAddress : networkInterface.getInterfaceAddresses()) {
+                if (ip.equals(interfaceAddress.getAddress())) {
+                    return true;
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return false;
     }
 
     private static List<InetAddress> findGateways(List<String> config) {
@@ -278,6 +292,19 @@ public class NetworkUtil {
         return interfaces;
     }
 
+    public static Inet4Address fromIntAddress(int address) {
+        byte[] addr = new byte[4];
+        addr[0] = (byte) (address >>> 24);
+        addr[1] = (byte) (address >>> 16);
+        addr[2] = (byte) (address >>> 8);
+        addr[3] = (byte) (address);
+        try {
+            return (Inet4Address) InetAddress.getByAddress(addr);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public static int getIntAddress(Inet4Address address) {
         return address.hashCode();
     }
@@ -441,6 +468,124 @@ public class NetworkUtil {
             return null;
         }
 
+    }
+
+    private static List<String> createNetsh(String mode, NetworkInterface networkInterface, String address, String mask, String gateway) {
+        List<String> command = new ArrayList<>();
+        command.add("netsh");
+        command.add("interface");
+        command.add("ip");
+        command.add(mode);
+        command.add("address");
+        command.add(networkInterface.getIndex() + "");
+        command.add("static");
+        if (address != null) {
+            command.add("address=" + address);
+        }
+        if (mask != null) {
+            command.add("mask=" + mask);
+        }
+        if (gateway != null) {
+            command.add("gateway=" + gateway);
+        }
+        return command;
+    }
+
+    public static void restoreAddress(NetworkInterface networkInterface) {
+        List<InetAddress> gateways = networkInterface.getGateways();
+        List<InterfaceAddress> interfaceAddresses = networkInterface.getInterfaceAddresses();
+        String mode = "set";
+        for (int i = 0; i < interfaceAddresses.size(); i++) {
+            InterfaceAddress interfaceAddress = interfaceAddresses.get(i);
+            if (!(interfaceAddress.getAddress() instanceof Inet4Address)) {
+                continue;
+            }
+            InetAddress gatewayAddress = null;
+            if (i < gateways.size()) {
+                if (gateways.get(i) instanceof Inet4Address) {
+                    gatewayAddress = gateways.get(i);
+                }
+            }
+            String address = interfaceAddress.getAddress().getHostAddress();
+            String mask = getMask(interfaceAddress.getNetworkPrefixLength());
+            String gateway = gatewayAddress == null ? null : gatewayAddress.getHostAddress();
+
+            int code;
+            InputStream is;
+            try {
+                List<String> command = createNetsh(mode, networkInterface, address, mask, gateway);
+                System.out.println(command);
+                ProcessBuilder pb = new ProcessBuilder(command);
+                Process process = pb.start();
+                is = process.getInputStream();
+                code = process.waitFor();
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to set ip: " + e.getMessage());
+            }
+            if (code != 0) {
+                String error = null;
+                try {
+                    int c;
+                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                    while ((c = is.read()) != -1) {
+                        baos.write(c);
+                    }
+                    ProcessBuilder pb = new ProcessBuilder("cmd", "/c", "chcp");
+                    Process process = pb.start();
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+                    String line = reader.readLine();
+                    String encoding = line.substring(line.indexOf(':') + 2);
+                    error = new String(baos.toString(Charset.forName(encoding)).getBytes(StandardCharsets.UTF_8));
+                    error = error.replace("\r\n", "");
+                } catch (Throwable ignored) {
+
+                }
+                if (error != null) {
+                    throw new RuntimeException("Failed to set ip: " + error);
+                }
+                throw new RuntimeException("Failed to set ip");
+            }
+
+            mode = "add";
+        }
+    }
+
+
+    public static void setAddress(NetworkInterface networkInterface, String address, String mask, String gateway) {
+        int code;
+        InputStream is;
+        try {
+            List<String> command = createNetsh("set", networkInterface, address, mask, gateway);
+            ProcessBuilder pb = new ProcessBuilder(command);
+            Process process = pb.start();
+            is = process.getInputStream();
+            code = process.waitFor();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to set ip: " + e.getMessage());
+        }
+        if (code != 0) {
+            String error = null;
+            try {
+                int i;
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                while ((i = is.read()) != -1) {
+                    baos.write(i);
+                }
+                ProcessBuilder pb = new ProcessBuilder("cmd", "/c", "chcp");
+                Process process = pb.start();
+                BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+                String line = reader.readLine();
+                String encoding = line.substring(line.indexOf(':') + 2);
+                error = new String(baos.toString(Charset.forName(encoding)).getBytes(StandardCharsets.UTF_8));
+                error = error.replace("\r\n", "");
+            } catch (Throwable ignored) {
+
+            }
+            if (error != null) {
+                throw new RuntimeException("Failed to set ip: " + error);
+            }
+            throw new RuntimeException("Failed to set ip");
+        }
     }
 
     private static long lastInternetCheck;
