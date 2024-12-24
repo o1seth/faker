@@ -72,9 +72,12 @@ public class DynamicLeaseManager extends AbstractDynamicLeaseManager {
     }
 
     private Inet4Address nextAddress() throws DhcpException {
-        if (this.next <= this.end) {
+        while (this.next <= this.end) {
             Inet4Address nextAddress = NetworkUtil.fromIntAddress(this.next);
             this.next++;
+            if (NetworkUtil.localIpExists(nextAddress.getHostAddress())) {
+                continue;
+            }
             return nextAddress;
         }
         long currentSeconds = System.currentTimeMillis() / 1000;
@@ -83,7 +86,10 @@ public class DynamicLeaseManager extends AbstractDynamicLeaseManager {
             Map.Entry<HardwareAddress, Lease> e = iterator.next();
             if (e.getValue().getExpires() < currentSeconds) {
                 iterator.remove();
-                return (Inet4Address) e.getValue().getClientAddress();
+                Inet4Address address = (Inet4Address) e.getValue().getClientAddress();
+                if (!NetworkUtil.localIpExists(address.getHostAddress())) {
+                    return address;
+                }
             }
         }
         throw new DhcpException("No free leases");
@@ -111,9 +117,9 @@ public class DynamicLeaseManager extends AbstractDynamicLeaseManager {
         if (lease == null) {
             lease = newLease(hardwareAddress, ttl);
             this.leases.put(hardwareAddress, lease);
-            Logger.info("new lease " + lease.getHardwareAddress() + " " + lease.getClientAddress());
+            Logger.info("<DHCP> new lease " + lease.getHardwareAddress() + " " + lease.getClientAddress());
         } else {
-            Logger.info("old lease " + lease.getHardwareAddress() + " " + lease.getClientAddress());
+            Logger.info("<DHCP> old lease " + lease.getHardwareAddress() + " " + lease.getClientAddress());
         }
 
         return lease.getClientAddress();
@@ -121,20 +127,20 @@ public class DynamicLeaseManager extends AbstractDynamicLeaseManager {
 
     @Override
     public DhcpMessage leaseRequest(DhcpRequestContext context, DhcpMessage request, InetAddress clientRequestedAddress, long clientRequestedExpirySecs) throws DhcpException {
-        Logger.info(" NEW REQ " + request + " " + clientRequestedAddress);
+        Logger.debug(" request " + request + " " + clientRequestedAddress);
         DhcpMessage reply = super.leaseRequest(context, request, clientRequestedAddress, clientRequestedExpirySecs);
         if (reply == null) {
             return null;
         }
         reply.getOptions().add(routers);
         reply.getOptions().add(nameServers);
-        Logger.info("REPLY REQ " + reply);
+        Logger.debug(" request reply " + reply);
         return reply;
     }
 
     @Override
     public DhcpMessage leaseOffer(DhcpRequestContext context, DhcpMessage request, InetAddress clientRequestedAddress, long clientRequestedExpirySecs) throws DhcpException {
-        Logger.info(" NEW OFF " + request + " " + clientRequestedAddress + " clientRequestedExpirySecs " + clientRequestedExpirySecs);
+        Logger.debug(" offer " + request + " " + clientRequestedAddress + " clientRequestedExpirySecs " + clientRequestedExpirySecs);
 
         DhcpMessage reply = super.leaseOffer(context, request, clientRequestedAddress, clientRequestedExpirySecs);
         if (reply == null) {
@@ -142,7 +148,7 @@ public class DynamicLeaseManager extends AbstractDynamicLeaseManager {
         }
         reply.getOptions().add(routers);
         reply.getOptions().add(nameServers);
-        Logger.info("REPLY OFF " + reply);
+        Logger.debug(" offer reply " + reply);
         return reply;
     }
 }

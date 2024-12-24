@@ -23,6 +23,45 @@ public class NetworkUtil {
         }
     }
 
+    public static boolean localIpExists(String ip) {
+        return localIpExists(ip, null);
+    }
+
+    public static boolean localIpExists(String ip, java.net.NetworkInterface except) {
+        try {
+            InetAddress address = InetAddress.getByName(ip);
+            Enumeration<java.net.NetworkInterface> enumeration = java.net.NetworkInterface.getNetworkInterfaces();
+            while (enumeration.hasMoreElements()) {
+                java.net.NetworkInterface ni = enumeration.nextElement();
+                if (ni == except) {
+                    continue;
+                }
+                for (InterfaceAddress interfaceAddress : ni.getInterfaceAddresses()) {
+                    if (interfaceAddress.getAddress().equals(address)) {
+                        return true;
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+
+        }
+        return false;
+    }
+
+    public static boolean isIpv4(String ip) {
+        try {
+            InetAddress address = InetAddress.getByName(ip);
+            if (address instanceof Inet4Address ipv4) {
+                return ipv4.getHostAddress().equals(ip);
+            }
+            return false;
+        } catch (Throwable ignored) {
+
+        }
+        return false;
+
+    }
+
     private static String createMask(int prefix) {
         if (prefix == 0) {
             return "0.0.0.0";
@@ -309,27 +348,62 @@ public class NetworkUtil {
         return address.hashCode();
     }
 
-    public static Inet4Address getStart(Inet4Address address, int prefix) {
+    public static int getStartInt(Inet4Address address, int prefix) {
         int shift = 0xffffffff << (32 - prefix);
         int start = shift & getIntAddress(address);
         start++;
+        return start;
+    }
+
+    public static Inet4Address getStart(Inet4Address address, int prefix) {
         try {
-            return (Inet4Address) InetAddress.getByAddress(Ints.toByteArray(start));
+            return (Inet4Address) InetAddress.getByAddress(Ints.toByteArray(getStartInt(address, prefix)));
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
-    public static Inet4Address getEnd(Inet4Address address, int prefix) {
+
+    public static int getEndInt(Inet4Address address, int prefix) {
         int shift = 0xffffffff << (32 - prefix);
-        int start = shift & getIntAddress(address);
-        start += (int) Math.pow(2, 32 - prefix);
-        start -= 2;
+        int end = shift & getIntAddress(address);
+        end += (int) Math.pow(2, 32 - prefix);
+        end -= 2;
+        return end;
+    }
+
+    public static Inet4Address getEnd(Inet4Address address, int prefix) {
         try {
-            return (Inet4Address) InetAddress.getByAddress(Ints.toByteArray(start));
+            return (Inet4Address) InetAddress.getByAddress(Ints.toByteArray(getEndInt(address, prefix)));
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public static boolean isIpInSameNetwork(int prefix, String... ip) {
+        try {
+            if (ip == null || ip.length == 0) {
+                return false;
+            }
+            if (ip.length == 1) {
+                return true;
+            }
+            Inet4Address address = (Inet4Address) InetAddress.getByName(ip[0]);
+            int start = getStartInt(address, prefix);
+            int end = getEndInt(address, prefix);
+            for (int i = 1; i < ip.length; i++) {
+                address = (Inet4Address) InetAddress.getByName(ip[i]);
+                int intAddress = getIntAddress(address);
+                if (intAddress < start || intAddress > end) {
+                    return false;
+                }
+            }
+            return true;
+        } catch (Exception ignored) {
+
+        }
+        return false;
+
     }
 
     private static long lastInternetInterface;
@@ -514,7 +588,6 @@ public class NetworkUtil {
             InputStream is;
             try {
                 List<String> command = createNetsh(mode, networkInterface, address, mask, gateway);
-                System.out.println(command);
                 ProcessBuilder pb = new ProcessBuilder(command);
                 Process process = pb.start();
                 is = process.getInputStream();
@@ -617,6 +690,40 @@ public class NetworkUtil {
                 return local;
             } catch (Throwable ignored) {
 
+            }
+        }
+        return null;
+    }
+
+    public static NetworkInterface findPotentialWifiHotspotInterface(List<NetworkInterface> interfaces) {
+        for (NetworkInterface ni : interfaces) {
+            if (ni.getDisplayName().equals("Microsoft Wi-Fi Direct Virtual Adapter #2") || ni.getDisplayName().equals("Microsoft Wi-Fi Direct Virtual Adapter #4")) {
+                Inet4Address ipv4 = ni.getFirstIpv4Address();
+                if (ipv4.getHostAddress().equals("192.168.137.1")) {
+                    return ni;
+                }
+            }
+        }
+
+        //windows 10
+        for (NetworkInterface ni : interfaces) {
+            if (ni.getDisplayName().equals("Microsoft Wi-Fi Direct Virtual Adapter #2")) {
+                return ni;
+            }
+        }
+        //windows 11
+        for (NetworkInterface ni : interfaces) {
+            if (ni.getDisplayName().equals("Microsoft Wi-Fi Direct Virtual Adapter #4")) {
+                return ni;
+            }
+        }
+
+        for (NetworkInterface ni : interfaces) {
+            if (ni.getDisplayName().equals("Microsoft Wi-Fi Direct Virtual Adapter")) {
+                Inet4Address ipv4 = ni.getFirstIpv4Address();
+                if (ipv4.getHostAddress().equals("192.168.137.1")) {
+                    return ni;
+                }
             }
         }
         return null;

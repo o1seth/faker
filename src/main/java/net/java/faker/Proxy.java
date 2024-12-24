@@ -26,9 +26,13 @@ import net.java.faker.proxy.session.DualConnection;
 import net.java.faker.proxy.session.ProxyConnection;
 import net.java.faker.auth.Account;
 import net.java.faker.util.logging.Logger;
+import org.anarres.dhcp.common.address.Subnet;
+import org.apache.directory.server.dhcp.messages.HardwareAddress;
 
 import java.io.*;
+import java.lang.reflect.Field;
 import java.net.*;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -92,6 +96,7 @@ public class Proxy {
     }
 
     public static void main(String[] args) {
+        System.setProperty("file.encoding", "UTF-8");
         if (args != null) {
             for (String arg : args) {
                 if ("--showdebug".equalsIgnoreCase(arg)) {

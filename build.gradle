@@ -6,7 +6,9 @@ plugins {
 
 group = 'net.java'
 version = '1.0'
-
+base {
+    compileJava.options.encoding = compileTestJava.options.encoding = javadoc.options.encoding = "UTF-8"
+}
 launch4j {
     manifest = "${project.projectDir}/manifest.xml"
     jarTask = project.tasks.shadowJar
@@ -53,7 +55,13 @@ dependencies {
     implementation 'com.mojang:authlib:3.16.29'
     implementation 'org.apache.commons:commons-lang3:3.17.0'
     implementation 'com.google.code.findbugs:jsr305:3.0.2'
-    implementation 'org.anarres.dhcp:dhcp-protocol:1.0.9'
+    //org.apache.directory.server.dhcp.service.manager.DhcpAddressResourceProvider
+    //org.apache.directory.server.dhcp.messages.HardwareAddress
+    //org.anarres.dhcp.common.address.Subnet
+    //doesn't support modern guava
+    implementation('org.anarres.dhcp:dhcp-protocol:1.0.9') {
+        exclude group: 'com.google.guava'
+    }
 }
 
 test {

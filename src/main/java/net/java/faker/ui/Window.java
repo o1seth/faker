@@ -2,10 +2,8 @@ package net.java.faker.ui;
 
 import com.formdev.flatlaf.FlatDarkLaf;
 import net.java.faker.Proxy;
-import net.java.faker.ui.tab.AccountsTab;
-import net.java.faker.ui.tab.AdvancedTab;
-import net.java.faker.ui.tab.GeneralTab;
-import net.java.faker.ui.tab.UISettingsTab;
+import net.java.faker.proxy.dhcp.Dhcp;
+import net.java.faker.ui.tab.*;
 import net.java.faker.util.Util;
 import net.java.faker.util.logging.Logger;
 
@@ -13,7 +11,10 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.net.URI;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class Window extends JFrame {
@@ -37,7 +38,7 @@ public class Window extends JFrame {
     public final AdvancedTab advancedTab = registerTab(new AdvancedTab(this));
     public final AccountsTab accountsTab = registerTab(new AccountsTab(this));
     public final UISettingsTab uiSettingsTab = registerTab(new UISettingsTab(this));
-
+    public final DHCPTab dhcpTab = registerTab(new DHCPTab(this));
     PopupMenu trayMenu;
     TrayIcon trayIcon;
 
@@ -53,6 +54,7 @@ public class Window extends JFrame {
         SwingUtilities.updateComponentTreeUI(this);
 
         this.setVisible(true);
+
     }
 
     public void hideTray() {
@@ -107,7 +109,7 @@ public class Window extends JFrame {
             UIManager.getLookAndFeelDefaults().put("TextComponent.arc", 5);
             UIManager.getLookAndFeelDefaults().put("Button.arc", 5);
         } catch (Throwable t) {
-            t.printStackTrace();
+            Logger.error("Failed set look and feel", t);
         }
     }
 
@@ -135,7 +137,7 @@ public class Window extends JFrame {
                 generalTab.applyGuiState();
                 advancedTab.applyGuiState();
                 Proxy.getConfig().save();
-                if (!Proxy.isStarted()) {
+                if (!Proxy.isStarted() && !Dhcp.isStarted()) {
                     System.exit(0);
                 }
             }
@@ -152,7 +154,7 @@ public class Window extends JFrame {
             }
         });
 
-        this.setSize(500, 398);
+        this.setSize(528, 398);
         this.setMinimumSize(this.getSize());
         this.setLocationRelativeTo(null);
         this.setContentPane(this.contentPane);

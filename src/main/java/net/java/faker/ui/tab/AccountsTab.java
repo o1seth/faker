@@ -29,7 +29,6 @@ public class AccountsTab extends UITab {
     private JList<Account> accountsList;
     private JButton addMicrosoftAccountButton;
 
-
     private AddAccountPopup addAccountPopup;
     private Thread addThread;
 

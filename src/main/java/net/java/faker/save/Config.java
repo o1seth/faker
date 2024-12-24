@@ -24,6 +24,14 @@ public class Config {
     public final BooleanValue blockTraffic = registerBoolean("BlockTraffic").defaultValue(true);
     public final StringValue locale = registerString("Locale");
     public final StringValue targetAdapter = registerString("TargetAdapter");
+    public final StringValue dhcp_interface = registerString("DHCP_interface");
+    public final StringValue dhcp_ip = registerString("DHCP_ip");
+    public final StringValue dhcp_mask = registerString("DHCP_mask");
+    public final StringValue dhcp_startIp = registerString("DHCP_startIp");
+    public final StringValue dhcp_endIp = registerString("DHCP_endIp");
+    public final StringValue dhcp_dns1 = registerString("DHCP_dns1");
+    public final StringValue dhcp_dns2 = registerString("DHCP_dns2");
+    public final BooleanValue dhcp_started = registerBoolean("DHCP_started");
     private InetSocketAddress targetHandshakeAddress = setTargetHandshakeAddress((String) null);
     private InetSocketAddress targetAddress;
     private final File file;

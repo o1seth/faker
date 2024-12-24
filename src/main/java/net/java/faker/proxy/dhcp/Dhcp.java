@@ -11,6 +11,7 @@ import java.net.BindException;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
+import java.util.ArrayList;
 import java.util.Arrays;
 
 public class Dhcp {
@@ -22,21 +23,32 @@ public class Dhcp {
         try {
             router.setAddresses((Inet4Address) InetAddress.getByName(address));
         } catch (Exception e) {
-            e.printStackTrace();
+            Logger.error("", e);
         }
         return router;
+    }
+
+    public static boolean isStarted() {
+        return server != null;
     }
 
     private static DomainNameServers createDns(String[] addresses) {
         DomainNameServers dns = new DomainNameServers();
         try {
-            Inet4Address[] inet4Addresses = new Inet4Address[addresses.length];
-            for (int i = 0; i < addresses.length; i++) {
-                inet4Addresses[i] = (Inet4Address) InetAddress.getByName(addresses[i]);
+            ArrayList<Inet4Address> inet4Addresses = new ArrayList<>(addresses.length);
+            for (String address : addresses) {
+                if (address == null || address.isEmpty()) {
+                    continue;
+                }
+                try {
+                    inet4Addresses.add((Inet4Address) InetAddress.getByName(address));
+                } catch (Exception ignored) {
+
+                }
             }
-            dns.setAddresses(inet4Addresses);
+            dns.setAddresses(inet4Addresses.toArray(new Inet4Address[0]));
         } catch (Exception e) {
-            e.printStackTrace();
+            Logger.error("", e);
         }
         return dns;
     }
@@ -47,6 +59,7 @@ public class Dhcp {
                 server.stop();
             } catch (Throwable ignored) {
             }
+            server = null;
         }
         if (dhcpInterface != null) {
             try {
@@ -143,15 +156,15 @@ public class Dhcp {
     }
 
     //netsh interface ip set address "AP" static 192.168.159.1 255.255.255.0 196.168.159.1
-    public static void main(String[] args) throws Throwable {
-
-        for (net.java.faker.util.network.NetworkInterface ni : NetworkUtil.getNetworkInterfaces()) {
-            if (ni.getName().equals("wlan0")) {
-                start(ni, "192.168.100.1", "255.255.255.0", "192.168.100.60", "192.168.100.5", new String[]{"1.1.1.1", "8.8.8.8"});
-                break;
-            }
-        }
-
-        Thread.sleep(2000000);
-    }
+//    public static void main(String[] args) throws Throwable {
+//
+//        for (net.java.faker.util.network.NetworkInterface ni : NetworkUtil.getNetworkInterfaces()) {
+//            if (ni.getName().equals("wlan0")) {
+//                start(ni, "192.168.100.1", "255.255.255.0", "192.168.100.60", "192.168.100.5", new String[]{"1.1.1.1", "8.8.8.8"});
+//                break;
+//            }
+//        }
+//
+//        Thread.sleep(2000000);
+//    }
 }
