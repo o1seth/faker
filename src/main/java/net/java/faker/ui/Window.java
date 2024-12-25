@@ -22,6 +22,7 @@ import com.formdev.flatlaf.FlatDarkLaf;
 import net.java.faker.Proxy;
 import net.java.faker.proxy.dhcp.Dhcp;
 import net.java.faker.ui.tab.*;
+import net.java.faker.util.Sys;
 import net.java.faker.util.Util;
 import net.java.faker.util.logging.Logger;
 
@@ -53,11 +54,16 @@ public class Window extends JFrame {
     public final AdvancedTab advancedTab = registerTab(new AdvancedTab(this));
     public final AccountsTab accountsTab = registerTab(new AccountsTab(this));
     public final UISettingsTab uiSettingsTab = registerTab(new UISettingsTab(this));
-    public final DHCPTab dhcpTab = registerTab(new DHCPTab(this));
+    public final DHCPTab dhcpTab;
     PopupMenu trayMenu;
     TrayIcon trayIcon;
 
     private Window() {
+        if (Sys.isWindows()) {
+            dhcpTab = registerTab(new DHCPTab(this));
+        } else {
+            dhcpTab = null;
+        }
         Thread.setDefaultUncaughtExceptionHandler((t, e) -> showException(e));
         this.setLookAndFeel();
         this.initWindow();
