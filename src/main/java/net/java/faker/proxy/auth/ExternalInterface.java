@@ -1,3 +1,21 @@
+/*
+ * This file is part of faker - https://github.com/o1seth/faker
+ * Copyright (C) 2024 o1seth
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package net.java.faker.proxy.auth;
 
 import net.java.faker.Proxy;
@@ -32,9 +50,7 @@ public class ExternalInterface {
                     Proxy.getAccountManager().save();
                 }
 
-
                 proxyConnection.setGameProfile(account.getGameProfile());
-                //final UserConnection user = proxyConnection.getUserConnection();
 
                 if (Proxy.getConfig().signChat.get() && proxyConnection.getVersion() >= (MCVersion.v1_19) && account instanceof MicrosoftAccount microsoftAccount) {
                     final StepPlayerCertificates.PlayerCertificates playerCertificates = microsoftAccount.getPlayerCertificates();
@@ -52,14 +68,7 @@ public class ExternalInterface {
                     }
                     proxyConnection.setLoginHelloPacket(new C2SLoginHelloPacket(proxyConnection.getGameProfile().getName(), expiresAt, publicKey, loginHelloKeySignature, proxyConnection.getGameProfile().getId()));
                     ChatSession1_19_3 chatSession1_19_3 = new ChatSession1_19_3(uuid, privateKey, new ProfileKey(expiresAtMillis, publicKeyBytes, keySignature));
-//                    ChatSession1_19_0 chatSession1_19_0 = new ChatSession1_19_0(uuid, privateKey, new ProfileKey(expiresAtMillis, publicKeyBytes, playerCertificates.getLegacyPublicKeySignature()));
-//                    ChatSession1_19_1 chatSession1_19_1 = new ChatSession1_19_1(uuid, privateKey, new ProfileKey(expiresAtMillis, publicKeyBytes, keySignature));
-//                    user.put(chatSession1_19_0);
-//                    user.put(chatSession1_19_1);
-//                    user.put(chatSession1_19_3);
                     proxyConnection.dualConnection.setChatSession1_19_3(chatSession1_19_3);
-//                    proxyConnection.setChatSession1_19_1(chatSession1_19_1);
-//                    proxyConnection.setChatSession1_19_0(chatSession1_19_0);
                 }
             }
 
@@ -88,7 +97,6 @@ public class ExternalInterface {
 
     public static void signNonce(final byte[] nonce, final C2SLoginKeyPacket packet, final ProxyConnection proxyConnection) throws InterruptedException, ExecutionException, SignatureException {
         Logger.u_info("auth", proxyConnection, "Requesting nonce signature");
-        //final UserConnection user = proxyConnection.getUserConnection();
         DualConnection dualConnection = proxyConnection.dualConnection;
         if (dualConnection.getChatSession1_19_3() != null) {
             final long salt = ThreadLocalRandom.current().nextLong();
@@ -103,8 +111,6 @@ public class ExternalInterface {
     }
 
     private static byte[] toByteArray(long value) {
-        // Note that this code needs to stay compatible with GWT, which has known
-        // bugs when narrowing byte casts of long values occur.
         byte[] result = new byte[8];
         for (int i = 7; i >= 0; i--) {
             result[i] = (byte) (value & 0xffL);
