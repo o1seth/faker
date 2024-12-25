@@ -16,13 +16,13 @@ Inspired by [ViaProxy](https://github.com/ViaVersion/ViaProxy).
 ## How to use
 First of all, you must have two Wi-Fi adapters: for first and second PC. If you have a laptop, it should already have Wi-Fi.
 
-1. Setup and enable Wi-Fi mobile hotspot on first PC:
+1. Setup and enable Wi-Fi mobile hotspot on first PC:</br>
 ![img.png](img/wifi1.png)
-2. Connect from second PC to created Wi-Fi:
+2. Connect from second PC to created Wi-Fi:</br>
 ![img.png](img/wifi2.png)
 3. Run Faker on first PC.
 4. Open advanced tab select ```Premium mode``` and ```Chat singing``` if you want to play on premium servers.
-5. Make sure that ```Target network adapter``` is set to something like ```Microsoft Wi-Fi Direct Virtual Adapter...```:
+5. Make sure that ```Target network adapter``` is set to something like ```Microsoft Wi-Fi Direct Virtual Adapter...```:</br>
 ![img.png](img/advanced_tab.png)
 6. General -> Start.
 7. Run minecraft on both PC. Use same version of minecraft. etc.: ```1.21.4 and 1.21.4``` or ```Feather 1.21.4 and Vanilla 1.21.4```.
