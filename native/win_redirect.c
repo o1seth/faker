@@ -7,16 +7,12 @@
 #include <winsock.h>
 #define WINDIVERTEXPORT
 #include <windivert.h>
-
-
 #define MAXBUF          WINDIVERT_MTU_MAX
 #define MDNS_PRIORITY 96
 #define TTL_PRIORITY 97
 #define IP_BLOCK_PRIORITY 98
 #define PORT_FORWARD_PRIORITY 99
 #define REDIRECT_PRIORITY 100
-
-
 char LOG_LEVEL = 2;
 #define DEBUG_LEVEL 1
 #define INFO_LEVEL 2
@@ -100,14 +96,76 @@ typedef struct
 	HANDLE thread;
 	unsigned char* packet;
 } TTL_FIX, * PTTL_FIX;
-
-
 typedef struct
 {
 	HANDLE windivert_handle;
 	HANDLE thread;
 	unsigned char* packet;
 } MDNS, * PMDNS;
+
+typedef struct
+{
+	UINT16 DstPort;//in ntohs, uses only for read and compare
+
+	UINT32 SrcIp;
+	UINT16 SrcPort;
+	char protocol;//IPPROTO_TCP, IPPROTO_UDP
+	UINT16 local_port;
+	SOCKET socket;
+
+	UINT64 LastPacketTime;
+	UINT32 syn_AckNum;
+	UINT32 syn_SeqNum;
+
+	BOOL syn;
+	BOOL server_fin;
+	UINT32 server_fin_ack;
+	UINT32 server_fin_seq;
+	BOOL client_fin;
+	UINT32 client_fin_ack;
+	UINT32 client_fin_seq;
+	BOOL closed;
+	BOOL releasing;
+	int index;
+	void* owner;
+	BOOL should_free;
+} PORT_FORWARD, * PPORT_FORWARD;
+
+typedef struct
+{
+	char* buf;
+	char* packet;
+
+	UINT16* skip_ports;
+	UINT16 skip_ports_count;
+
+	HANDLE windivert;
+
+	UINT32 forward_to_addr;
+	UINT32 this_machine_addr;
+	UINT32 listen_addr;
+	UINT32 listen_start_addr;
+	UINT32 listen_end_addr;
+
+	HANDLE thread_in;
+
+	UINT32 tcp_port_count;
+	UINT32 udp_port_count;
+
+	UINT32 connection_count;
+	UINT32 connections_size;
+	PPORT_FORWARD* connections;
+
+	UINT64 last_clean_time;
+} FORWARD, * PFORWARD;
+
+typedef struct
+{
+	char* packet;
+	HANDLE windivert;
+	HANDLE thread_in;
+} BLOCK_IP, * PBLOCK_IP;
+
 
 static void message(FILE* const f, const char* msg, ...)
 {
@@ -133,15 +191,13 @@ char error_buf[1024];
 	sprintf(error_buf,msg,__VA_ARGS__);
 #define warning(msg, ...)							\
 if(is_warn())										\
-	message(stderr, msg, ## __VA_ARGS__)			\
-
+	message(stderr, msg, ## __VA_ARGS__)
 #define info(msg, ...)								\
 if(is_info())										\
-	message(stdout, msg, ## __VA_ARGS__)			\
-
+	message(stdout, msg, ## __VA_ARGS__)
 #define debug(msg, ...)								\
 if(is_debug())										\
-	message(stdout, msg, ## __VA_ARGS__)			\
+	message(stdout, msg, ## __VA_ARGS__)
 
 
 __declspec(dllexport)char* get_error() {
@@ -361,8 +417,6 @@ void print_packet(PWINDIVERT_IPHDR ip_header, PWINDIVERT_ADDRESS addr) {
 	info("%s: (%lu)", inet_ntoa(dst_addr), ip_header->DstAddr);
 }
 
-
-
 PTCP_CONNECTION newConnection(PREDIRECT redirect) {
 	PTCP_CONNECTION connection = calloc(1, sizeof(TCP_CONNECTION));
 	if (connection == 0) {
@@ -438,8 +492,6 @@ void shutdownAllConnections(PREDIRECT redirect) {
 	redirect->connection_count = 0;
 	ReleaseMutex(lock);
 }
-
-
 BOOL DstConnectionExists(PREDIRECT redirect, UINT32 DstAddr, UINT16 DstPort) {
 	HANDLE lock = redirect->connection_lock;
 	WaitForSingleObject(lock, INFINITE);
@@ -496,8 +548,6 @@ PTCP_CONNECTION findConnection(PREDIRECT redirect, PWINDIVERT_IPHDR ip_header, P
 	ReleaseMutex(lock);
 	return 0;
 }
-
-
 DWORD WINAPI cleanup_thread(LPVOID lpParam)
 {
 	PREDIRECT redirect = (PREDIRECT)lpParam;
@@ -610,8 +660,6 @@ BOOL bind_tcp_port(UINT16* port_out, SOCKET* socket_out) {
 BOOL bind_udp_port(UINT16* port_out, SOCKET* socket_out) {
 	return bind_port(port_out, socket_out, IPPROTO_UDP);
 }
-
-
 BOOL skip_port(PREDIRECT r, UINT16 port) {
 	UINT32 count = r->skip_local_ports_count;
 	for (UINT32 i = 0; i < count; i++) {
@@ -722,8 +770,6 @@ DWORD WINAPI redirect_out(LPVOID lpParam)
 	if (!con->should_free) {
 		return 0;
 	}
-
-
 	if (!WinDivertShutdown(con->handle, WINDIVERT_SHUTDOWN_BOTH)) {
 		DWORD err = GetLastError();
 		warning("[S] WinDivertShutdown err (%d), conection %p", err, con);
@@ -762,8 +808,6 @@ DWORD WINAPI redirect_in(LPVOID lpParam)
 
 	UINT16 binded_port = redirect->binded_port;
 	UINT16 nbinded_port = htons(binded_port);
-
-
 	unsigned char* packet = redirect->packet;
 
 	char* msg = redirect->buf;
@@ -809,8 +853,6 @@ DWORD WINAPI redirect_in(LPVOID lpParam)
 			// packets that sends by Windows NAT
 			// For example 192.168.0.2:59834 -> 1.1.1.1:25565
 			// should be sent right after real packet
-
-
 
 			if (WinNatConnectionExists(redirect, ip_header, tcp_header)) {
 				if (prevAck != tcp_header->AckNum || prevSeq != tcp_header->SeqNum) {
@@ -1219,8 +1261,6 @@ __declspec(dllexport) PREDIRECT redirect_start(UINT16 port, char* filter, char l
 		goto err;
 	}
 
-
-
 	r->network_handle = WinDivertOpen("false", WINDIVERT_LAYER_NETWORK, REDIRECT_PRIORITY, WINDIVERT_FLAG_DROP);
 	if (r->network_handle == INVALID_HANDLE_VALUE)
 	{
@@ -1304,8 +1344,6 @@ DWORD WINAPI disable_mdns_thread(LPVOID lpParam)
 	PMDNS mdns = (PMDNS)lpParam;
 	HANDLE handle = mdns->windivert_handle;
 	unsigned char* packet = mdns->packet;
-
-
 	UINT packet_len;
 	WINDIVERT_ADDRESS addr;
 	PWINDIVERT_IPHDR ip_header = 0;
@@ -1422,8 +1460,6 @@ DWORD WINAPI ttl(LPVOID lpParam)
 	HANDLE handle = ttlfix->forward_handle;
 	HANDLE net = ttlfix->network_handle;
 	unsigned char* packet = ttlfix->packet;
-
-
 	UINT packet_len;
 	WINDIVERT_ADDRESS addr;
 	PWINDIVERT_IPHDR ip_header = 0;
@@ -1476,8 +1512,6 @@ DWORD WINAPI ttl(LPVOID lpParam)
 	info("Stopped ttl");
 	return 0;
 }
-
-
 PTTL_FIX ttl_fix;
 __declspec(dllexport) BOOL enable_ttl_fix() {
 	if (ttl_fix != 0) {
@@ -1555,62 +1589,6 @@ __declspec(dllexport) BOOL disable_ttl_fix() {
 }
 
 
-
-typedef struct
-{
-	UINT16 DstPort;//in ntohs, uses only for read and compare
-
-	UINT32 SrcIp;
-	UINT16 SrcPort;
-	char protocol;//IPPROTO_TCP, IPPROTO_UDP
-	UINT16 local_port;
-	SOCKET socket;
-
-	UINT64 LastPacketTime;
-	UINT32 syn_AckNum;
-	UINT32 syn_SeqNum;
-
-	BOOL syn;
-	BOOL server_fin;
-	UINT32 server_fin_ack;
-	UINT32 server_fin_seq;
-	BOOL client_fin;
-	UINT32 client_fin_ack;
-	UINT32 client_fin_seq;
-	BOOL closed;
-	BOOL releasing;
-	int index;
-	void* owner;
-	BOOL should_free;
-} PORT_FORWARD, * PPORT_FORWARD;
-
-typedef struct
-{
-	char* buf;
-	char* packet;
-
-	UINT16* skip_ports;
-	UINT16 skip_ports_count;
-
-	HANDLE windivert;
-
-	UINT32 forward_to_addr;
-	UINT32 this_machine_addr;
-	UINT32 listen_addr;
-	UINT32 listen_start_addr;
-	UINT32 listen_end_addr;
-
-	HANDLE thread_in;
-
-	UINT32 tcp_port_count;
-	UINT32 udp_port_count;
-
-	UINT32 connection_count;
-	UINT32 connections_size;
-	PPORT_FORWARD* connections;
-
-	UINT64 last_clean_time;
-} FORWARD, * PFORWARD;
 
 PPORT_FORWARD newForwardConnection(PFORWARD f) {
 	PPORT_FORWARD connection = calloc(1, sizeof(PORT_FORWARD));
@@ -2056,8 +2034,6 @@ DWORD WINAPI port_forward_thread(LPVOID lpParam)
 	info("Stopped port forward");
 	return 0;
 }
-
-
 __declspec(dllexport) BOOL port_forward_stop(PFORWARD forward) {
 	if (forward == NULL) {
 		error("null");
@@ -2162,12 +2138,6 @@ err:
 	return 0;
 }
 
-typedef struct
-{
-	char* packet;
-	HANDLE windivert;
-	HANDLE thread_in;
-} BLOCK_IP, * PBLOCK_IP;
 
 DWORD WINAPI block_ip_thread(LPVOID lpParam)
 {
@@ -2330,8 +2300,6 @@ JNIEXPORT jlong JNICALL Java_net_java_faker_WinRedirect_mdnsLlmnrDisable(JNIEnv*
 JNIEXPORT jboolean JNICALL Java_net_java_faker_WinRedirect_mdnsLlmnrRestore(JNIEnv* env, jclass cl, jlong jmdns) {
 	return mdns_restore((PMDNS)jmdns);
 }
-
-
 JNIEXPORT jboolean JNICALL Java_net_java_faker_WinRedirect_enableTtlFix(JNIEnv* env, jclass cl) {
 	return enable_ttl_fix();
 }

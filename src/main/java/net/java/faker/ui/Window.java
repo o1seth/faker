@@ -11,10 +11,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.net.URI;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 public class Window extends JFrame {
@@ -115,7 +112,7 @@ public class Window extends JFrame {
 
 
     private void initWindow() {
-        this.setTitle("Faker");
+        this.setTitle("Faker " + Proxy.VERSION);
         try {
             List<Image> icons = new ArrayList<>();
             Image icon32 = Util.getResourceImage("/assets/faker/icon/icon_32.png");

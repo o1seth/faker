@@ -17,6 +17,7 @@ launch4j {
     productName = 'Faker'
     mutexName = 'faker_mutex'
     jreMinVersion = '17'
+    version = "${project.version}"
 }
 
 
