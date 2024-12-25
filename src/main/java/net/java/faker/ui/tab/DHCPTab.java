@@ -38,6 +38,7 @@ public class DHCPTab extends UITab {
     JTextField maskField;
     JTextField ipAddressField;
     JButton start;
+    String lastGeneratedIp;
 
     @Override
     protected void init(JPanel parent) {
@@ -104,6 +105,7 @@ public class DHCPTab extends UITab {
             GBC.create(ipAddressBody).grid(0, gridY++).anchor(GBC.NORTHWEST).add(ipAddressLabel);
             ipAddressField = new JTextField();
             ipAddressField.setText(Proxy.getConfig().dhcp_ip.get());
+            lastGeneratedIp = Proxy.getConfig().dhcp_ip.get();
             ipAddressField.getDocument().addDocumentListener(new DocumentListener() {
                 @Override
                 public void insertUpdate(DocumentEvent e) {
@@ -226,6 +228,7 @@ public class DHCPTab extends UITab {
                 boolean shouldStart = true;
                 if (ip.isEmpty()) {
                     ip = generateIp();
+
                     shouldStart = false;
                 }
                 if (shouldStart) {
@@ -300,6 +303,8 @@ public class DHCPTab extends UITab {
                     } else {
                         dns1 = ip;
                     }
+                } else if (dns1.equals(this.lastGeneratedIp)) {
+                    dns1 = ip;
                 }
 
                 if (!dns2.isEmpty() && !NetworkUtil.isIpv4(dns2)) {
@@ -310,7 +315,7 @@ public class DHCPTab extends UITab {
                         dns2 = "";
                     }
                 }
-
+                this.lastGeneratedIp = ip;
                 this.ipAddressField.setText(ip);
                 this.maskField.setText(mask);
                 this.startIpField.setText(startIp);
@@ -318,11 +323,12 @@ public class DHCPTab extends UITab {
                 this.dns1Field.setText(dns1);
                 this.dns2Field.setText(dns2);
                 applyGui();
-                Proxy.getConfig().dhcp_started.set(true);
-                Proxy.getConfig().save();
+
                 if (shouldStart) {
+                    Proxy.getConfig().dhcp_started.set(true);
                     start(ni, ip, mask, startIp, endIp, new String[]{dns1, dns2});
                 }
+                Proxy.getConfig().save();
             } catch (Exception ex) {
                 Logger.error("Failed to parse dhcp", ex);
             }
