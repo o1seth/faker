@@ -374,11 +374,21 @@ public class DHCPTab extends UITab {
 
             } catch (Throwable e) {
                 Logger.error("Failed to start dhcp", e);
+                String additional = "";
+                try {
+                    java.net.NetworkInterface networkInterface = NetworkUtil.getInterfaceByIp(ip);
+                    if (networkInterface != null && ni.getJavaInterface() != networkInterface) {
+                        additional = "\n\"" + networkInterface.getDisplayName() + "\" already has ip " + ip;
+                    }
+                } catch (Throwable ignored) {
+                }
+
+                final String fadditional = additional;
                 SwingUtilities.invokeLater(() -> {
                     start.setEnabled(true);
                     setState(true);
                     I18n.link(start, "tab.general.state.start");
-                    Window.showError("Failed to start dhcp: " + e.getMessage());
+                    Window.showError("Failed to start dhcp: " + e.getMessage() + fadditional);
                 });
             }
 

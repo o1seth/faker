@@ -533,6 +533,29 @@ public class NetworkUtil {
         }
     }
 
+    public static java.net.NetworkInterface getInterfaceByIp(String ip) {
+        try {
+            Enumeration<java.net.NetworkInterface> enumeration = java.net.NetworkInterface.getNetworkInterfaces();
+            while (enumeration.hasMoreElements()) {
+                java.net.NetworkInterface i = enumeration.nextElement();
+                if (!i.isUp()) {
+                    continue;
+                }
+                for (InterfaceAddress ia : i.getInterfaceAddresses()) {
+                    if (ia.getAddress() instanceof Inet4Address ipv4) {
+                        if (ipv4.getHostAddress().equals(ip)) {
+                            return i;
+                        }
+                    }
+                }
+            }
+            return null;
+        } catch (Exception e) {
+            ExceptionUtil.throwException(e);
+            return null;
+        }
+    }
+
     public static java.net.NetworkInterface getJavaNetworkInterfaceFor(Inet4Address address) {
         try {
             Enumeration<java.net.NetworkInterface> enumeration = java.net.NetworkInterface.getNetworkInterfaces();
@@ -647,6 +670,7 @@ public class NetworkUtil {
         InputStream is;
         try {
             List<String> command = createNetsh("set", networkInterface, address, mask, gateway);
+            System.out.println(command);
             ProcessBuilder pb = new ProcessBuilder(command);
             Process process = pb.start();
             is = process.getInputStream();
