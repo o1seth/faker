@@ -670,7 +670,6 @@ public class NetworkUtil {
         InputStream is;
         try {
             List<String> command = createNetsh("set", networkInterface, address, mask, gateway);
-            System.out.println(command);
             ProcessBuilder pb = new ProcessBuilder(command);
             Process process = pb.start();
             is = process.getInputStream();
