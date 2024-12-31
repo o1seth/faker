@@ -20,6 +20,7 @@ launch4j {
     version = "${project.version}"
     icon = "${project.projectDir}/src/main/resources/assets/faker/icon/icon_64.ico"
     jvmOptions.add("-Dfile.encoding=UTF-8")
+    downloadUrl = "https://adoptium.net/"
 }
 
 

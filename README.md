@@ -20,10 +20,10 @@ First of all, you must have two Wi-Fi adapters: for first and second computers. 
 ![img.png](img/wifi1.png)
 2. Connect from second computer to created Wi-Fi:</br>
 ![img.png](img/wifi2.png)
-3. Run Faker on first computer.
+3. Run Faker on first computer. Download and run Faker on second computer **is not needed**.
 4. Open ```Advanced``` tab, Make sure that ```Target network interface``` is set to something like ```Microsoft Wi-Fi Direct Virtual Adapter...```:</br>
 ![img.png](img/advanced_tab.png)
-5. Select ```Premium mode``` and ```Chat singing``` if you want to play on premium servers. Also add Microsoft account on ```Accounts``` tab.
+5. Select ```Premium mode``` and ```Chat singing``` if you want to play on premium servers. Also add Microsoft account on ```Accounts``` tab. If you are going to play on a server without premium mode (no license) skip this step.
 6. General -> Start.
 7. Run minecraft on both computers. Use same version of minecraft. etc.: ```1.21.4 and 1.21.4``` or ```Feather 1.21.4 and Vanilla 1.21.4```.
 8. Connect to the same server (etc. ```mc.hypixel.net```) from both computers. Minecraft will freeze on "Connecting..." until second client connects. You have about 20 seconds to connect the second client.
