@@ -21,7 +21,7 @@ First of all, you must have two Wi-Fi adapters: for first and second computers. 
 2. Connect from second computer to created Wi-Fi:</br>
 ![img.png](img/wifi2.png)
 3. Run Faker on first computer.
-4. Open ```Advanced``` tab, Make sure that ```Target network adapter``` is set to something like ```Microsoft Wi-Fi Direct Virtual Adapter...```:</br>
+4. Open ```Advanced``` tab, Make sure that ```Target network interface``` is set to something like ```Microsoft Wi-Fi Direct Virtual Adapter...```:</br>
 ![img.png](img/advanced_tab.png)
 5. Select ```Premium mode``` and ```Chat singing``` if you want to play on premium servers. Also add Microsoft account on ```Accounts``` tab.
 6. General -> Start.
