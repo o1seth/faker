@@ -409,7 +409,7 @@ public class Proxy {
         if (!WinRedirect.isSupported()) {
             return;
         }
-        if (targetAdapter == NetworkInterface.NULL) {
+        if (targetAdapter == NetworkInterface.NULL || targetAdapter == null) {
             Logger.error("(port forward) Target adapter is null");
             return;
         }
@@ -513,7 +513,7 @@ public class Proxy {
     }
 
     private static void startBlockTraffic(NetworkInterface targetAdapter) {
-        if (targetAdapter == NetworkInterface.NULL) {
+        if (targetAdapter == NetworkInterface.NULL || targetAdapter == null) {
             Logger.error("(block traffic) Target adapter is null");
             return;
         }
