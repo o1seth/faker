@@ -54,7 +54,7 @@ import java.util.function.Consumer;
 public class Proxy {
     public static final String VERSION = "1.0";
     public static InetSocketAddress proxyAddress = new InetSocketAddress("127.0.0.1", 25565);
-
+    private static URI backendProxy;
     public static final int compressionThreshold = 256;
     public static final int connectTimeout = 8000;
     public static DualConnection dualConnection;
@@ -270,6 +270,13 @@ public class Proxy {
         return targetAddress.getPort();
     }
 
+    public static void setBackendProxy(URI backendProxy) {
+        Proxy.backendProxy = backendProxy;
+    }
+
+    public static URI getBackendProxy() {
+        return backendProxy;
+    }
 
     public static AccountManager getAccountManager() {
         return accountManager;

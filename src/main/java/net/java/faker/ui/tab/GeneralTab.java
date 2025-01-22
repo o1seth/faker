@@ -38,6 +38,8 @@ import net.java.faker.util.network.NetworkInterface;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.ArrayList;
 
@@ -335,6 +337,7 @@ public class GeneralTab extends UITab {
         this.window.advancedTab.proxyOnlineMode.setEnabled(state);
 
         this.window.advancedTab.chatSigning.setEnabled(state);
+        this.window.advancedTab.proxy.setEnabled(state);
         if (WinRedirect.isSupported()) {
             this.window.advancedTab.tracerouteFix.setEnabled(state);
             this.window.advancedTab.mdnsDisable.setEnabled(state);
@@ -356,7 +359,12 @@ public class GeneralTab extends UITab {
 
         this.setComponentsEnabled(false);
         this.startButton.setEnabled(false);
-
+        final String proxyUrl;
+        if (this.window.advancedTab.proxy.getText() != null) {
+            proxyUrl = this.window.advancedTab.proxy.getText().trim();
+        } else {
+            proxyUrl = "";
+        }
         I18n.link(GeneralTab.this.startButton, "tab.general.state.starting");
         new Thread(() -> {
             final String serverAddress = this.serverAddress.getText().trim();
@@ -382,6 +390,16 @@ public class GeneralTab extends UITab {
 //                    }
                     if (this.window.advancedTab.networkAdapters != null && this.window.advancedTab.networkAdapters.getSelectedItem() instanceof NetworkInterface ni) {
                         Proxy.setTargetAdapter(ni);
+                    }
+
+                    if (!proxyUrl.isBlank()) {
+                        try {
+                            Proxy.setBackendProxy(new URI(proxyUrl));
+                        } catch (URISyntaxException e) {
+                            throw new IllegalArgumentException(I18n.get("tab.general.error.invalid_proxy_url"));
+                        }
+                    } else {
+                        Proxy.setBackendProxy(null);
                     }
 
                     this.applyGuiState();

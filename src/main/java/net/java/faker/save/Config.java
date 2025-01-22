@@ -51,6 +51,8 @@ public class Config {
     public final StringValue dhcp_dns2 = registerString("DHCP_dns2");
     public final BooleanValue dhcp_started = registerBoolean("DHCP_started");
     private InetSocketAddress targetHandshakeAddress = setTargetHandshakeAddress((String) null);
+
+    public final StringValue proxy = registerString("proxy");
     private InetSocketAddress targetAddress;
     private final File file;
 

@@ -45,6 +45,7 @@ public class AdvancedTab extends UITab {
     JCheckBox routerSpoof;
     JCheckBox blockTraffic;
     NetworkAdapterComboBox networkAdapters;
+    JTextField proxy;
 
     public AdvancedTab(final Window frame) {
         super(frame, "advanced");
@@ -149,6 +150,8 @@ public class AdvancedTab extends UITab {
                 updateNetworkAdapterEnabled(null);
             }
         }
+
+
         {
             this.showKickErrors = new JCheckBox();
             I18n.link(showKickErrors, "tab.advanced.show_kick_errors.label");
@@ -178,7 +181,17 @@ public class AdvancedTab extends UITab {
 
 
         GBC.create(body).grid(0, gridy++).insets(BODY_BLOCK_PADDING, BORDER_PADDING, 0, BODY_BLOCK_PADDING).fill(GBC.BOTH).weight(1, 1).add(checkboxes);
+        {
+            JLabel proxyLabel = new JLabel();
+            I18n.link(proxyLabel, "tab.advanced.proxy_url.label");
+            I18n.linkTooltip(proxyLabel, "tab.advanced.proxy_url.tooltip");
+            GBC.create(body).grid(0, gridy++).insets(BODY_BLOCK_PADDING, BORDER_PADDING, 0, 0).anchor(GBC.NORTHWEST).add(proxyLabel);
 
+            this.proxy = new JTextField();
+            I18n.linkTooltip(proxy, "tab.advanced.proxy_url.tooltip");
+            this.proxy.setText(Proxy.getConfig().proxy.get());
+            GBC.create(body).grid(0, gridy++).insets(0, BORDER_PADDING, 0, BORDER_PADDING).fill(GBC.HORIZONTAL).add(this.proxy);
+        }
 
         parent.add(body, BorderLayout.NORTH);
     }
@@ -195,6 +208,7 @@ public class AdvancedTab extends UITab {
     public void applyGuiState() {
         Proxy.getConfig().onlineMode.set(this.proxyOnlineMode.isSelected());
         Proxy.getConfig().signChat.set(this.chatSigning.isSelected());
+        Proxy.getConfig().proxy.set(this.proxy.getText());
         if (WinRedirect.isSupported()) {
             Proxy.getConfig().tracerouteFix.set(this.tracerouteFix.isSelected());
             Proxy.getConfig().mdnsDisable.set(this.mdnsDisable.isSelected());
