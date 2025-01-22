@@ -31,6 +31,7 @@ import net.java.faker.proxy.packet.C2SAbstractPong;
 import net.java.faker.proxy.packet.C2SMovePlayer;
 import net.java.faker.proxy.packethandler.PacketHandler;
 import net.java.faker.proxy.util.CloseAndReturn;
+import net.java.faker.proxy.util.PacketUtils;
 import net.java.faker.util.logging.Logger;
 import net.lenni0451.mcstructs.text.components.StringComponent;
 import net.raphimc.netminecraft.constants.ConnectionState;
@@ -227,13 +228,17 @@ public class ProxyConnection extends NetClient {
         return this.c2pConnectionState;
     }
 
+    private boolean skipPacket(Object packet) {
+        if (packet instanceof C2SAbstractPong pong) {
+            if (dualConnection != null && dualConnection.skipPong(pong)) {
+//                Logger.raw("SKIP: " + PacketUtils.toString(pong));
+                return true;
+            }
+        }
+        return false;
+    }
 
     private ChannelFuture sendServer(Object msg) {
-//        if (msg instanceof C2SAbstractPong pong) {
-//            if (dualConnection != null && dualConnection.skipPong(pong)) {
-//                Logger.raw("SKIP: " + PacketUtils.toString(pong));
-//            }
-//        }
         return getChannel().writeAndFlush(msg);
     }
 
@@ -278,6 +283,9 @@ public class ProxyConnection extends NetClient {
                 return;
             }
             addSentPacket(packet);
+            if (skipPacket(packet)) {
+                return;
+            }
             if (listeners == null) {
                 sendServer(packet);
             } else {
@@ -293,6 +301,9 @@ public class ProxyConnection extends NetClient {
                 return;
             }
             addSentPacket(packet);
+            if (skipPacket(packet)) {
+                return;
+            }
             if (listener == null) {
                 sendServer(packet);
             } else {
@@ -304,6 +315,9 @@ public class ProxyConnection extends NetClient {
     public void sendToServer(ByteBuf packet, ChannelFutureListener listener) {
         synchronized (controllerLocker) {
             if (!isController) {
+                return;
+            }
+            if (skipPacket(packet)) {
                 return;
             }
             if (listener == null) {
@@ -318,6 +332,9 @@ public class ProxyConnection extends NetClient {
         synchronized (controllerLocker) {
             if (!isController) {
                 addSentPacket(packet);
+                return;
+            }
+            if (skipPacket(packet)) {
                 return;
             }
             if (listeners == null) {
