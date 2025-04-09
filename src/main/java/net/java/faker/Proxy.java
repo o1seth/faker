@@ -123,6 +123,12 @@ public class Proxy {
         loadNetty();
         config = new Config(new File(getFakerDirectory(), "faker_config.json"));
         accountManager = new AccountManager(new File(getFakerDirectory(), "faker_accounts.json"));
+
+        if (config.allowDirectConnection.get()) {
+            Proxy.proxyAddress = new InetSocketAddress("0.0.0.0", 25565);
+        } else {
+            Proxy.proxyAddress = new InetSocketAddress("127.0.0.1", 25565);
+        }
         Window.getInstance();
         registerEvents();
     }

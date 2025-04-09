@@ -31,6 +31,7 @@ import net.java.faker.util.network.NetworkUtil;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.net.InetSocketAddress;
 
 import static net.java.faker.ui.Window.BODY_BLOCK_PADDING;
 import static net.java.faker.ui.Window.BORDER_PADDING;
@@ -44,6 +45,8 @@ public class AdvancedTab extends UITab {
     JCheckBox mdnsDisable;
     JCheckBox routerSpoof;
     JCheckBox blockTraffic;
+
+    JCheckBox allowDirectConnection;
     NetworkAdapterComboBox networkAdapters;
     JTextField proxy;
 
@@ -161,6 +164,22 @@ public class AdvancedTab extends UITab {
         }
 
         {
+            this.allowDirectConnection = new JCheckBox();
+            I18n.link(allowDirectConnection, "tab.advanced.allow_direct_connection.label");
+            I18n.linkTooltip(allowDirectConnection, "tab.advanced.allow_direct_connection.tooltip");
+            this.allowDirectConnection.setSelected(Proxy.getConfig().allowDirectConnection.get());
+            this.allowDirectConnection.addActionListener((e) -> {
+                if (this.allowDirectConnection.isSelected()) {
+                    Proxy.proxyAddress = new InetSocketAddress("0.0.0.0", 25565);
+                } else {
+                    Proxy.proxyAddress = new InetSocketAddress("127.0.0.1", 25565);
+                }
+            });
+
+            checkboxes.add(this.allowDirectConnection);
+        }
+
+        {
             //just empty
             checkboxes.add(Box.createHorizontalBox());
         }
@@ -215,6 +234,7 @@ public class AdvancedTab extends UITab {
 
             Proxy.getConfig().blockTraffic.set(this.blockTraffic.isSelected());
             Proxy.getConfig().routerSpoof.set(this.routerSpoof.isSelected());
+            Proxy.getConfig().allowDirectConnection.set(this.allowDirectConnection.isSelected());
             if (this.networkAdapters.getSelectedItem() == NetworkInterface.NULL) {
                 Proxy.getConfig().targetAdapter.set("null");
             } else if (this.networkAdapters.getSelectedItem() instanceof NetworkInterface ni) {

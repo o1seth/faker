@@ -40,6 +40,7 @@ public class Config {
     public final BooleanValue mdnsDisable = registerBoolean("mDNSDisable").defaultValue(true);
     public final BooleanValue routerSpoof = registerBoolean("RouterSpoof").defaultValue(true);
     public final BooleanValue blockTraffic = registerBoolean("BlockTraffic").defaultValue(true);
+    public final BooleanValue allowDirectConnection = registerBoolean("AllowDirectConnection").defaultValue(false);
     public final StringValue locale = registerString("Locale");
     public final StringValue targetAdapter = registerString("TargetAdapter");
     public final StringValue dhcp_interface = registerString("DHCP_interface");
