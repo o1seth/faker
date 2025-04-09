@@ -33,7 +33,8 @@ public class PacketRegistry extends DefaultPacketRegistry {
         registerPacket(MCPackets.C2S_SET_CARRIED_ITEM, C2SSetCarriedItem::new);
         registerPacket(MCPackets.C2S_PLAYER_COMMAND, C2SPlayerCommand::new);
         registerPacket(MCPackets.S2C_SET_ENTITY_MOTION, S2CSetEntityMotion::new);
-
+        registerPacket(MCPackets.C2S_SWING, C2SSwing::new);
+        registerPacket(MCPackets.S2C_ANIMATE, S2CAnimate::new);
         if (protocolVersion < MCVersion.v1_17) {
             registerPacket(MCPackets.S2C_DESTROY_ENTITIES, S2CDestroyEntities::new);
         } else if (protocolVersion == MCVersion.v1_17) {

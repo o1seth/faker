@@ -344,6 +344,7 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
         this.proxyConnection.getPacketHandlers().add(new CarriedItemHandler(this.proxyConnection));
         this.proxyConnection.getPacketHandlers().add(new CloseContainerHandler(this.proxyConnection));
         this.proxyConnection.getPacketHandlers().add(new PlayerCommandHandler(this.proxyConnection));
+        this.proxyConnection.getPacketHandlers().add(new SwingHandler(this.proxyConnection));
         if (version >= MCVersion.v1_20_5) {
             this.proxyConnection.getPacketHandlers().add(new TransferPacketHandler(this.proxyConnection));
         }
