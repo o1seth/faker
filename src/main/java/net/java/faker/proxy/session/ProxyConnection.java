@@ -90,12 +90,12 @@ public class ProxyConnection extends NetClient {
     private final InetSocketAddress realSrcAddress;
     private final InetSocketAddress realDstAddress;
 
-    public ProxyConnection(final Supplier<ChannelHandler> handlerSupplier, final Function<Supplier<ChannelHandler>, ChannelInitializer<Channel>> channelInitializerSupplier, final Channel c2p) {
-        this(handlerSupplier, channelInitializerSupplier, c2p, null, null);
+    public ProxyConnection(final ChannelInitializer<Channel> channelInitializerSupplier, final Channel c2p) {
+        this(channelInitializerSupplier, c2p, null, null);
     }
 
-    public ProxyConnection(final Supplier<ChannelHandler> handlerSupplier, final Function<Supplier<ChannelHandler>, ChannelInitializer<Channel>> channelInitializerSupplier, final Channel c2p, InetSocketAddress src, InetSocketAddress dst) {
-        super(handlerSupplier, channelInitializerSupplier);
+    public ProxyConnection(final ChannelInitializer<Channel> channelInitializerSupplier, final Channel c2p, InetSocketAddress src, InetSocketAddress dst) {
+        super(channelInitializerSupplier);
         this.c2p = c2p;
         if (src != null && dst != null) {
             this.isRedirected = true;

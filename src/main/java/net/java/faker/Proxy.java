@@ -171,7 +171,7 @@ public class Proxy {
 
             Logger.info("Starting proxy server");
             event(new ProxyStateEvent(ProxyStateEvent.State.STARTING));
-            currentProxyServer = new NetServer(Client2ProxyHandler::new, Client2ProxyChannelInitializer::new);
+            currentProxyServer = new NetServer(new Client2ProxyChannelInitializer(Client2ProxyHandler::new));
 
             try {
                 currentProxyServer.bind(proxyAddress, false);

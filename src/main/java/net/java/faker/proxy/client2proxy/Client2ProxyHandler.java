@@ -73,7 +73,7 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
         }
 
         final Supplier<ChannelHandler> handlerSupplier = Proxy2ServerHandler::new;
-        this.proxyConnection = new ProxyConnection(handlerSupplier, Proxy2ServerChannelInitializer::new, ctx.channel(), addresses[0], addresses[1]);
+        this.proxyConnection = new ProxyConnection(new Proxy2ServerChannelInitializer(handlerSupplier), ctx.channel(), addresses[0], addresses[1]);
         ctx.channel().attr(CLIENT_2_PROXY_ATTRIBUTE_KEY).set(this);
 
         Proxy.getConnectedClients().add(ctx.channel());
