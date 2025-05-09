@@ -1,5 +1,5 @@
--injars 'build\libs\faker-1.2-all.jar'
--outjars 'build\libs\faker-1.2-all-shrink.jar'
+-injars 'build\libs\faker-1.3-all.jar'
+-outjars 'build\libs\faker-1.3-all-shrink.jar'
 
 -libraryjars '<java.home>\jmods\java.base.jmod'
 -libraryjars '<java.home>\jmods\java.desktop.jmod'
