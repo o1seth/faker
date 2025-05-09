@@ -28,6 +28,7 @@ import org.apache.directory.server.dhcp.messages.DhcpMessage;
 import org.apache.directory.server.dhcp.messages.HardwareAddress;
 import org.apache.directory.server.dhcp.options.vendor.DomainNameServers;
 import org.apache.directory.server.dhcp.options.vendor.Routers;
+import org.apache.directory.server.dhcp.options.vendor.SubnetMask;
 import org.apache.directory.server.dhcp.service.manager.AbstractDynamicLeaseManager;
 import org.apache.directory.server.dhcp.service.store.Lease;
 
@@ -43,6 +44,7 @@ import java.util.Map;
 public class DynamicLeaseManager extends AbstractDynamicLeaseManager {
     Routers routers;
     DomainNameServers nameServers;
+    SubnetMask mask;
     Map<HardwareAddress, Lease> leases = new HashMap<>();
     Inet4Address startAddress;
     Inet4Address endAddress;
@@ -50,15 +52,16 @@ public class DynamicLeaseManager extends AbstractDynamicLeaseManager {
     int end;
     int next;
 
-    public DynamicLeaseManager(String startAddress, String endAddress, Routers routers, DomainNameServers nameServers) throws UnknownHostException {
-        this((Inet4Address) InetAddress.getByName(startAddress), (Inet4Address) InetAddress.getByName(endAddress), routers, nameServers);
+    public DynamicLeaseManager(String startAddress, String endAddress, Routers routers, DomainNameServers nameServers, SubnetMask mask) throws UnknownHostException {
+        this((Inet4Address) InetAddress.getByName(startAddress), (Inet4Address) InetAddress.getByName(endAddress), routers, nameServers, mask);
     }
 
-    public DynamicLeaseManager(Inet4Address startAddress, Inet4Address endAddress, Routers routers, DomainNameServers nameServers) {
+    public DynamicLeaseManager(Inet4Address startAddress, Inet4Address endAddress, Routers routers, DomainNameServers nameServers, SubnetMask mask) {
         this.startAddress = startAddress;
         this.endAddress = endAddress;
         this.routers = routers;
         this.nameServers = nameServers;
+        this.mask = mask;
         TTL_LEASE.minLeaseTime = 3600;
         TTL_LEASE.maxLeaseTime = 86400 * 3;
         TTL_LEASE.defaultLeaseTime = 86400;
@@ -152,6 +155,9 @@ public class DynamicLeaseManager extends AbstractDynamicLeaseManager {
         }
         reply.getOptions().add(routers);
         reply.getOptions().add(nameServers);
+        if (mask != null) {
+            reply.getOptions().add(mask);
+        }
         Logger.debug(" request reply " + reply);
         return reply;
     }
@@ -166,6 +172,9 @@ public class DynamicLeaseManager extends AbstractDynamicLeaseManager {
         }
         reply.getOptions().add(routers);
         reply.getOptions().add(nameServers);
+        if (mask != null) {
+            reply.getOptions().add(mask);
+        }
         Logger.debug(" offer reply " + reply);
         return reply;
     }

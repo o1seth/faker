@@ -23,6 +23,7 @@ import net.java.faker.util.logging.Logger;
 import net.java.faker.util.network.NetworkUtil;
 import org.apache.directory.server.dhcp.options.vendor.DomainNameServers;
 import org.apache.directory.server.dhcp.options.vendor.Routers;
+import org.apache.directory.server.dhcp.options.vendor.SubnetMask;
 import org.apache.directory.server.dhcp.service.manager.AbstractDynamicLeaseManager;
 
 import java.net.BindException;
@@ -48,6 +49,20 @@ public class Dhcp {
 
     public static boolean isStarted() {
         return server != null;
+    }
+
+    private static SubnetMask createMask(String mask) {
+        try {
+            return new SubnetMask(InetAddress.getByName(mask));
+        } catch (Throwable ignored) {
+
+        }
+        try {
+            return new SubnetMask(InetAddress.getByName("255.255.255.0"));
+        } catch (Throwable ignored) {
+
+        }
+        return null;
     }
 
     private static DomainNameServers createDns(String[] addresses) {
@@ -119,7 +134,7 @@ public class Dhcp {
             dhcpInterface = networkInterface;
 
 
-            AbstractDynamicLeaseManager manager = new DynamicLeaseManager(start, end, createRouter(address), createDns(dns));
+            AbstractDynamicLeaseManager manager = new DynamicLeaseManager(start, end, createRouter(address), createDns(dns), createMask(mask));
             server = new DhcpServer(manager);
 
             NetworkInterface updatedInterface = null;
