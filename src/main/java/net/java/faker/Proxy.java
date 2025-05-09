@@ -63,7 +63,7 @@ import static net.java.faker.ui.Window.BODY_BLOCK_PADDING;
 import static net.java.faker.ui.Window.BORDER_PADDING;
 
 public class Proxy {
-    public static final String VERSION = "1.1";
+    public static final String VERSION = "1.2";
     public static InetSocketAddress proxyAddress = new InetSocketAddress("127.0.0.1", 25565);
     private static URI backendProxy;
     public static final int compressionThreshold = 256;
