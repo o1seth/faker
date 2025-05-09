@@ -382,9 +382,16 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
         }
 
         Proxy.connectedAddresses.add(connectAddress);
+        final long startTime = System.currentTimeMillis();
         this.proxyConnection.connectToServer(connectAddress, addSkipPort).addListeners(removeSkipPort, (ThrowingChannelFutureListener) f -> {
             if (f.isSuccess()) {
                 f.channel().eventLoop().submit(() -> { // Reschedule so the packets get sent after the channel is fully initialized and active
+                    final long endTime = System.currentTimeMillis();
+                    int connectTime = (int) (endTime - startTime);
+                    this.proxyConnection.setConnectTime(connectTime);
+                    if (this.proxyConnection.dualConnection != null) {
+                        this.proxyConnection.dualConnection.startLatencyChecker();
+                    }
 
                     this.proxyConnection.sendToServer(newHandshake, ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE, f2 -> {
                         if (f2.isSuccess()) {

@@ -85,7 +85,17 @@ public class WinRedirect {
         NETWORK, NETWORK_FORWARD
     }
 
-    public static long redirectStart(int targetPort, int localPort, Inet4Address[] srcAddresses, Inet4Address[] dstAddresses, Layer layer) {
+    public static native boolean setRedirectLatency(long redirect, String ip, int port, int latency);
+
+    public static native int getRedirectLatency(long redirect, String ip, int port);
+
+    public static native int getLatency(String fromIp, int fromPort, String toIp, int toPort);
+
+    public static native boolean redirectSetDefaultLatency(long redirect, int latency);
+
+    public static native int redirectGetDefaultLatency(long redirect);
+
+    public static long redirectStart(int targetPort, int localPort, Inet4Address[] srcAddresses, Inet4Address[] dstAddresses, Layer layer, int latency) {
         StringBuilder filter = new StringBuilder();
         filter.append("tcp");
         filter.append(" and (tcp.DstPort == ");
@@ -122,10 +132,10 @@ public class WinRedirect {
             }
         }
         Logger.raw("Redirect filter:\n" + filter);
-        return redirectStart(localPort, filter.toString(), layer.ordinal());
+        return redirectStart(localPort, filter.toString(), layer.ordinal(), latency);
     }
 
-    protected static native long redirectStart(int redirect_port, String filter, int layer);
+    protected static native long redirectStart(int redirect_port, String filter, int layer, int latency);
 
     public static native void redirectStop(long redirect);
 

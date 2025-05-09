@@ -35,6 +35,8 @@ import net.java.faker.proxy.session.ProxyConnection;
 import net.java.faker.proxy.util.chat.Ints;
 import net.java.faker.save.AccountManager;
 import net.java.faker.save.Config;
+import net.java.faker.ui.GBC;
+import net.java.faker.ui.I18n;
 import net.java.faker.ui.Window;
 import net.java.faker.ui.tab.AdvancedTab;
 import net.java.faker.util.HttpHostSpoofer;
@@ -45,11 +47,20 @@ import net.java.faker.util.network.NetworkUtil;
 import net.raphimc.netminecraft.constants.MCPipeline;
 import net.raphimc.netminecraft.netty.connection.NetServer;
 
+import javax.swing.*;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ChangeListener;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.io.File;
 import java.net.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
+
+import static net.java.faker.ui.Window.BODY_BLOCK_PADDING;
+import static net.java.faker.ui.Window.BORDER_PADDING;
 
 public class Proxy {
     public static final String VERSION = "1.1";
@@ -580,12 +591,16 @@ public class Proxy {
         if (!WinRedirect.isSupported()) {
             return;
         }
-        forward_redirect = WinRedirect.redirectStart(getTargetPort(), proxyAddress.getPort(), null, null, WinRedirect.Layer.NETWORK_FORWARD);
+        int forwardLatency = 0;
+        if (config.autoLatency.get()) {
+            forwardLatency = 40;
+        }
+        forward_redirect = WinRedirect.redirectStart(getTargetPort(), proxyAddress.getPort(), null, null, WinRedirect.Layer.NETWORK_FORWARD, forwardLatency);
         if (forward_redirect == 0) {
             currentProxyServer.getChannel().close();
             throw new RuntimeException(WinRedirect.getError());
         }
-        redirect = WinRedirect.redirectStart(getTargetPort(), proxyAddress.getPort(), null, null, WinRedirect.Layer.NETWORK);
+        redirect = WinRedirect.redirectStart(getTargetPort(), proxyAddress.getPort(), null, null, WinRedirect.Layer.NETWORK, 0);
         if (redirect == 0) {
             currentProxyServer.getChannel().close();
             throw new RuntimeException(WinRedirect.getError());

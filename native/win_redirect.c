@@ -47,6 +47,20 @@ __declspec(dllexport) void set_log_level(char level) {
 	LOG_LEVEL = level;
 }
 
+typedef struct DELAYED_PACKET DELAYED_PACKET;
+
+typedef struct DELAYED_PACKET
+{
+	UINT packet_len;
+	UINT64 send_time;
+	UINT32 Layer;
+	UINT32 IfIdx;
+	UINT32 SubIfIdx;
+	BOOL Outbound;
+	DELAYED_PACKET* next;
+	char packet[];
+} DELAYED_PACKET, * PDELAYED_PACKET;
+
 typedef struct
 {
 	HANDLE handle;
@@ -76,6 +90,14 @@ typedef struct
 	int index;
 	void* owner;
 	BOOL should_free;
+
+	BOOL established;//true after connection initialized: syn->syn+ack->ack
+
+	HANDLE delayed_packet_thread;
+	HANDLE delayed_packet_lock;
+	PDELAYED_PACKET delayed_packets;
+	PDELAYED_PACKET delayed_packets_last;
+	int packets_latency;
 } TCP_CONNECTION, * PTCP_CONNECTION;
 
 typedef struct
@@ -104,6 +126,7 @@ typedef struct
 	PTCP_CONNECTION* connections;
 	UINT32 next_ip;
 	BOOL pause;
+	int default_packets_latency;
 } REDIRECT, * PREDIRECT;
 
 typedef struct
@@ -113,6 +136,7 @@ typedef struct
 	HANDLE thread;
 	unsigned char* packet;
 } TTL_FIX, * PTTL_FIX;
+
 typedef struct
 {
 	HANDLE windivert_handle;
@@ -495,6 +519,7 @@ void shutdownAllConnections(PREDIRECT redirect) {
 			DWORD err = GetLastError();
 			warning("WinDivertClose err (%d), conection %p", err, c);
 		}
+		WaitForSingleObject(c->delayed_packet_thread, INFINITE);
 		c->handle = INVALID_HANDLE_VALUE;
 		CloseHandle(c->thread_handle);
 	}
@@ -687,6 +712,147 @@ BOOL skip_port(PREDIRECT r, UINT16 port) {
 	return FALSE;
 }
 
+
+UINT64 currentTimeMillis() {
+	FILETIME ft;
+	GetSystemTimeAsFileTime(&ft);
+	ULARGE_INTEGER uli;
+	uli.LowPart = ft.dwLowDateTime;
+	uli.HighPart = ft.dwHighDateTime;
+	return uli.QuadPart / 10000;
+}
+
+
+BOOL handle_out_packet(PTCP_CONNECTION con, unsigned char* packet, UINT packet_len, PWINDIVERT_IPHDR ip_header0, PWINDIVERT_TCPHDR tcp_header0, WINDIVERT_ADDRESS addr) {
+	PWINDIVERT_IPHDR ip_header = ip_header0 != 0 ? ip_header0 : 0;
+	PWINDIVERT_TCPHDR tcp_header = tcp_header0 != 0 ? tcp_header0 : 0;
+	HANDLE handle = con->handle;
+	if (ip_header == 0 || tcp_header == 0) {
+		WinDivertHelperParsePacket(packet, packet_len, &ip_header, NULL, NULL,
+			NULL, NULL, &tcp_header, NULL, NULL, NULL, NULL, NULL);
+	}
+	ip_header->SrcAddr = con->DstIp;// -> 165.22.196.0
+	tcp_header->SrcPort = con->DstPort;// -> 80
+	ip_header->DstAddr = con->SrcIp;// -> 192.168.137.71
+	tcp_header->DstPort = con->SrcPort;// -> port of 192.168.137.71
+
+	if (is_debug()) {
+		char msg[512];
+		sprint_tcp_src_dst(ip_header, tcp_header, &addr, msg);
+		debug("[S] (%s) %s, ack %lu seq %lu", get_tcp_flag(tcp_header), msg, ntohl(tcp_header->AckNum), ntohl(tcp_header->SeqNum));
+	}
+
+	if (tcp_header->Fin) {
+		if (con->server_fin) {//simultaneous tcp close
+			if (con->server_fin_ack == ntohl(tcp_header->AckNum) && con->server_fin_seq == ntohl(tcp_header->SeqNum)) {
+				con->closed = TRUE;
+				debug(" [S] RETRANSMISSION? simultaneous tcp close!");
+			}
+			else {
+				con->closed = TRUE;
+				debug("[S] simultaneous tcp close!");
+			}
+		}
+		con->server_fin = TRUE;
+		con->server_fin_ack = ntohl(tcp_header->AckNum);
+		con->server_fin_seq = ntohl(tcp_header->SeqNum);
+		debug("[S] server_fin");
+	}
+	else if (tcp_header->Ack && con->server_fin && !tcp_header->Rst) {
+		if (con->server_fin_ack + 1 == ntohl(tcp_header->AckNum) && con->server_fin_seq + 1 == ntohl(tcp_header->SeqNum)) {
+			con->closed = TRUE;
+			debug("[S] Correct close");
+		}
+		else {
+			debug("[S] NOT fin acknum, seqnum! %lu != %lu or %lu != %lu", con->server_fin_ack + 1, ntohl(tcp_header->AckNum), con->server_fin_seq + 1, ntohl(tcp_header->SeqNum));
+		}
+	}
+	WinDivertHelperCalcChecksums(packet, packet_len, &addr, 0);
+	if (!WinDivertSend(handle, packet, packet_len, NULL, &addr))
+	{
+		warning("[S] failed to send packet (%d)", GetLastError());
+		return FALSE;
+	}
+	if (tcp_header->Rst) {
+		con->closed = TRUE;
+		debug("[S] RST CLOSE");
+	}
+	if (con->closed) {
+		debug("[S] closed");
+		return TRUE;
+	}
+	return FALSE;
+}
+
+void send_delayed_packets(PTCP_CONNECTION con, int delay) {
+	PDELAYED_PACKET delayed_packet = con->delayed_packets;
+	WINDIVERT_ADDRESS addr;
+	HANDLE handle = con->handle;
+	while (delayed_packet != 0) {
+		if (delayed_packet->send_time <= currentTimeMillis() - delay) {
+			char* packet_data = delayed_packet->packet;
+			UINT packet_len = delayed_packet->packet_len;
+			addr.Outbound = delayed_packet->Outbound;
+			addr.Layer = delayed_packet->Layer;
+			addr.Network.IfIdx = delayed_packet->IfIdx;
+			addr.Network.SubIfIdx = delayed_packet->SubIfIdx;
+			//WinDivertHelperParsePacket(packet_data, packet_len, &ip_header, NULL, NULL,
+			//	NULL, NULL, &tcp_header, NULL, NULL, NULL, NULL, NULL);
+
+			if (handle_out_packet(con, packet_data, packet_len, 0, 0, addr)) {
+				break;
+			}
+
+			//WinDivertHelperCalcChecksums(packet_data, packet_len, &addr, 0);
+			//if (!WinDivertSend(handle, packet_data, packet_len, NULL, &addr))
+			//{
+			//	warning("[S] failed to send packet (%d)", GetLastError());
+			//}
+			PDELAYED_PACKET next = delayed_packet->next;
+			con->delayed_packets = next;
+			if (con->delayed_packets == 0) {
+				con->delayed_packets_last = 0;
+			}
+			free(delayed_packet);
+			delayed_packet = next;
+		}
+		else {
+			break;
+		}
+	}
+}
+
+DWORD WINAPI delayed_packet_thread(LPVOID lpParam)
+{
+	debug("[S] delayed_packet_thread started");
+	PTCP_CONNECTION con = (PTCP_CONNECTION)lpParam;
+	HANDLE handle = con->handle;
+	HANDLE lock = con->delayed_packet_lock;
+	WINDIVERT_ADDRESS addr;
+	//PWINDIVERT_IPHDR ip_header;
+	//PWINDIVERT_TCPHDR tcp_header;
+
+	while (TRUE)
+	{
+		if (con->closed) {
+			break;
+		}
+		if (con->packets_latency > 0 && con->delayed_packets != 0) {
+			WaitForSingleObject(lock, INFINITE);
+			if (con->established) {
+				send_delayed_packets(con, con->packets_latency * 3 / 2);
+			}
+			else {
+				send_delayed_packets(con, con->packets_latency);
+			}
+			ReleaseMutex(lock);
+		}
+		Sleep(20);
+	}
+	CloseHandle(lock);
+	debug("[S] delayed_packet_thread end");
+}
+
 DWORD WINAPI redirect_out(LPVOID lpParam)
 {
 	debug("[S] thread started");
@@ -704,11 +870,9 @@ DWORD WINAPI redirect_out(LPVOID lpParam)
 	WINDIVERT_ADDRESS addr;
 	PWINDIVERT_IPHDR ip_header;
 	PWINDIVERT_TCPHDR tcp_header;
-	PWINDIVERT_UDPHDR udp_header;
 	char msg[512];
 	while (TRUE)
 	{
-
 		if (!WinDivertRecv(handle, packet, MAXBUF, &packet_len, &addr))
 		{
 			DWORD err = GetLastError();
@@ -725,62 +889,50 @@ DWORD WINAPI redirect_out(LPVOID lpParam)
 		}
 		con->LastPacketTime = GetTickCount64();
 		WinDivertHelperParsePacket(packet, packet_len, &ip_header, NULL, NULL,
-			NULL, NULL, &tcp_header, &udp_header, NULL, NULL, NULL, NULL);
-		if (ip_header == NULL || (tcp_header == NULL && udp_header == NULL))
+			NULL, NULL, &tcp_header, NULL, NULL, NULL, NULL, NULL);
+		if (ip_header == NULL || tcp_header == NULL)
 		{
 			warning("failed to parse packet (%d)", GetLastError());
 			continue;
 		}
-		ip_header->SrcAddr = con->DstIp;// -> 165.22.196.0
-		tcp_header->SrcPort = con->DstPort;// -> 80
-		ip_header->DstAddr = con->SrcIp;// -> 192.168.137.71
-		tcp_header->DstPort = con->SrcPort;// -> port of 192.168.137.71
-		if (is_debug()) {
-			sprint_tcp_src_dst(ip_header, tcp_header, &addr, msg);
-			debug("[S] (%s) %s, ack %lu seq %lu", get_tcp_flag(tcp_header), msg, ntohl(tcp_header->AckNum), ntohl(tcp_header->SeqNum));
-		}
-		if (tcp_header->Fin) {
-			if (con->server_fin) {//simultaneous tcp close
-				if (con->server_fin_ack == ntohl(tcp_header->AckNum) && con->server_fin_seq == ntohl(tcp_header->SeqNum)) {
-					con->closed = TRUE;
-					debug(" [S] RETRANSMISSION? simultaneous tcp close!");
+		if (con->packets_latency > 0) {
+			HANDLE lock = con->delayed_packet_lock;
+			UINT64 cur_time = currentTimeMillis();
+			{
+				WaitForSingleObject(lock, INFINITE);
+				send_delayed_packets(con, con->packets_latency);
+				ReleaseMutex(lock);
+			}
+			UINT16 payload_length = packet_len - (tcp_header->HdrLength << 2) - (ip_header->HdrLength << 2);
+			if (tcp_header->Ack && !tcp_header->Fin && !tcp_header->Rst && !tcp_header->Syn) {
+				PDELAYED_PACKET delayed_packet = malloc(sizeof(DELAYED_PACKET) + packet_len);
+				memcpy(delayed_packet->packet, packet, packet_len);
+				delayed_packet->packet_len = packet_len;
+				delayed_packet->Layer = addr.Layer;
+				delayed_packet->IfIdx = addr.Network.IfIdx;
+				delayed_packet->SubIfIdx = addr.Network.SubIfIdx;
+				delayed_packet->Outbound = addr.Outbound;
+				delayed_packet->next = NULL;
+				WaitForSingleObject(lock, INFINITE);
+				if (con->delayed_packets_last == 0) {
+					con->delayed_packets = delayed_packet;
+					con->delayed_packets_last = delayed_packet;
 				}
 				else {
-					con->closed = TRUE;
-					debug("[S] simultaneous tcp close!");
+					con->delayed_packets_last->next = delayed_packet;
+					con->delayed_packets_last = delayed_packet;
 				}
-			}
-			con->server_fin = TRUE;
-			con->server_fin_ack = ntohl(tcp_header->AckNum);
-			con->server_fin_seq = ntohl(tcp_header->SeqNum);
-			debug("[S] server_fin");
-		}
-		else if (tcp_header->Ack && con->server_fin && !tcp_header->Rst) {
-			if (con->server_fin_ack + 1 == ntohl(tcp_header->AckNum) && con->server_fin_seq + 1 == ntohl(tcp_header->SeqNum)) {
-				con->closed = TRUE;
-				debug("[S] Correct close");
-			}
-			else {
-				debug("[S] NOT fin acknum, seqnum! %lu != %lu or %lu != %lu", con->server_fin_ack + 1, ntohl(tcp_header->AckNum), con->server_fin_seq + 1, ntohl(tcp_header->SeqNum));
+				delayed_packet->send_time = cur_time;
+				ReleaseMutex(lock);
+				//info("delay ack, current time: %llu %lu %lu, len %lu", cur_time, ntohl(tcp_header->AckNum), ntohl(tcp_header->SeqNum), payload_length);
+				continue;
 			}
 		}
-
-		WinDivertHelperCalcChecksums(packet, packet_len, &addr, 0);
-		if (!WinDivertSend(handle, packet, packet_len, NULL, &addr))
-		{
-			warning("[S] failed to send packet (%d)", GetLastError());
-			continue;
-		}
-		if (tcp_header->Rst) {
-			con->closed = TRUE;
-			debug("[S] RST CLOSE");
-		}
-		if (con->closed) {
-			debug("[S] closed");
+		if (handle_out_packet(con, packet, packet_len, ip_header, tcp_header, addr)) {
 			break;
 		}
-
 	}
+
 	free(packet);
 	debug("[S] Thread end");
 	// will be false if shutdown was called by shutdownAllConnections()
@@ -976,6 +1128,7 @@ DWORD WINAPI redirect_in(LPVOID lpParam)
 				info("[C] Skip outbound connection from %s:%lu", ntoa(ip_header->SrcAddr), ntohs(tcp_header->SrcPort));
 			}
 			if (canCreate) {
+				//Sleep(20);
 				UINT32 next_local_ip = next_local_addr(redirect);
 				//"tcp and ip.SrcAddr == 192.168.137.1 and tcp.SrcPort == %d and ip.DstAddr == 192.168.137.71 and tcp.DstPort == %d"
 				//165.22.196.0:80 -> 192.168.137.71:DstPort
@@ -1002,7 +1155,7 @@ DWORD WINAPI redirect_in(LPVOID lpParam)
 						c->syn_AckNum = tcp_header->AckNum;
 						c->syn_SeqNum = tcp_header->SeqNum;
 						c->handle = out_handle;
-
+						c->packets_latency = redirect->default_packets_latency;
 						con = c;
 						if (is_debug()) {
 							sprint_tcp_src_dst(ip_header, tcp_header, &addr, msg);
@@ -1010,16 +1163,24 @@ DWORD WINAPI redirect_in(LPVOID lpParam)
 						}
 
 						c->thread_handle = CreateThread(NULL, 100 * 1024, redirect_out, c, 0, 0);
+						c->delayed_packet_lock = CreateMutex(NULL, FALSE, NULL);
+						if (c->delayed_packet_thread == 0) {
+							c->delayed_packet_thread = CreateThread(NULL, 100 * 1024, delayed_packet_thread, c, 0, 0);
+						}
 					}
 					else {
 						WinDivertClose(out_handle);
 					}
 				}
-				//Sleep(10);
 			}
-
 		}
 		if (con != 0) {
+			if (con->packets_latency > 0) {
+				HANDLE lock = con->delayed_packet_lock;
+				WaitForSingleObject(lock, INFINITE);
+				send_delayed_packets(con, con->packets_latency);
+				ReleaseMutex(lock);
+			}
 			prevAck = tcp_header->AckNum;
 			prevSeq = tcp_header->SeqNum;
 
@@ -1034,6 +1195,11 @@ DWORD WINAPI redirect_in(LPVOID lpParam)
 			if (is_debug()) {
 				sprint_tcp_src_dst(ip_header, tcp_header, &addr, msg);
 				debug("[C] Send (%s): %s, ack %lu seq %lu", get_tcp_flag(tcp_header), msg, ntohl(tcp_header->AckNum), ntohl(tcp_header->SeqNum));
+			}
+			if (!con->established) {
+				if (tcp_header->Ack && !tcp_header->Syn) {
+					con->established = TRUE;
+				}
 			}
 
 			//print_iphdr(ip_header);
@@ -1061,7 +1227,6 @@ DWORD WINAPI redirect_in(LPVOID lpParam)
 				}
 			}
 			con->LastPacketTime = GetTickCount64();
-
 		}
 		else {
 			if (!redirect->pause) {
@@ -1173,6 +1338,63 @@ __declspec(dllexport) BOOL redirect_get_real_addresses(PREDIRECT r, char* ip, UI
 	ReleaseMutex(lock);
 	return FALSE;
 }
+__declspec(dllexport) BOOL redirect_set_latency(PREDIRECT r, char* ip, UINT16 port, int latency) {
+	if (r == NULL) {
+		error("null");
+		return FALSE;
+	}
+	if (ip == NULL) {
+		return FALSE;
+	}
+
+	UINT32 addr = ip4(ip);
+	HANDLE lock = r->connection_lock;
+
+	WaitForSingleObject(lock, INFINITE);
+	UINT32 connection_count = r->connection_count;
+	for (UINT32 i = 0; i < connection_count; i++) {
+		PTCP_CONNECTION c = r->connections[i];
+		if (c->releasing) {
+			continue;
+		}
+		if (c->FakeSrcIp == addr) {
+			c->packets_latency = latency;
+			ReleaseMutex(lock);
+			return TRUE;
+		}
+	}
+	ReleaseMutex(lock);
+	return FALSE;
+}
+
+__declspec(dllexport) int redirect_get_latency(PREDIRECT r, char* ip, UINT16 port) {
+	if (r == NULL) {
+		error("null");
+		return -1;
+	}
+	if (ip == NULL) {
+		return -1;
+	}
+
+	UINT32 addr = ip4(ip);
+	HANDLE lock = r->connection_lock;
+
+	WaitForSingleObject(lock, INFINITE);
+	UINT32 connection_count = r->connection_count;
+	for (UINT32 i = 0; i < connection_count; i++) {
+		PTCP_CONNECTION c = r->connections[i];
+		if (c->releasing) {
+			continue;
+		}
+		if (c->FakeSrcIp == addr) {
+			int latency = c->packets_latency;
+			ReleaseMutex(lock);
+			return latency;
+		}
+	}
+	ReleaseMutex(lock);
+	return -1;
+}
 
 __declspec(dllexport) UINT32 redirect_get_active_connections_count(PREDIRECT r) {
 	if (r == NULL) {
@@ -1223,7 +1445,24 @@ __declspec(dllexport) BOOL redirect_add_skip_port(PREDIRECT r, UINT16 port) {
 	return 1;
 }
 
-__declspec(dllexport) PREDIRECT redirect_start(UINT16 port, char* filter, char layer) {
+__declspec(dllexport) BOOL redirect_set_default_latency(PREDIRECT r, int default_latency) {
+	if (r == NULL) {
+		error("null");
+		return FALSE;
+	}
+	r->default_packets_latency = default_latency;
+	return TRUE;
+}
+
+__declspec(dllexport) int redirect_get_default_latency(PREDIRECT r) {
+	if (r == NULL) {
+		error("null");
+		return -1;
+	}
+	return r->default_packets_latency;
+}
+
+__declspec(dllexport) PREDIRECT redirect_start(UINT16 port, char* filter, char layer, int default_latency) {
 
 	if (layer != WINDIVERT_LAYER_NETWORK && layer != WINDIVERT_LAYER_NETWORK_FORWARD) {
 		error("Unknown layer %i", layer);
@@ -1239,6 +1478,7 @@ __declspec(dllexport) PREDIRECT redirect_start(UINT16 port, char* filter, char l
 		return 0;
 	}
 	r->layer = layer;
+	r->default_packets_latency = default_latency;
 	r->connection_count = 0;
 	r->connections_size = 256;
 	r->connections = calloc(r->connections_size, sizeof(PTCP_CONNECTION));
@@ -2051,6 +2291,7 @@ DWORD WINAPI port_forward_thread(LPVOID lpParam)
 	info("Stopped port forward");
 	return 0;
 }
+
 __declspec(dllexport) BOOL port_forward_stop(PFORWARD forward) {
 	if (forward == NULL) {
 		error("null");
@@ -2155,6 +2396,103 @@ err:
 	return 0;
 }
 
+DWORD WINAPI getLatency_thread(LPVOID lpParam)
+{
+	HANDLE handle = (HANDLE)lpParam;
+	unsigned char* packet = malloc(MAXBUF);
+	UINT packet_len;
+	WINDIVERT_ADDRESS addr;
+	PWINDIVERT_IPHDR ip_header;
+	PWINDIVERT_TCPHDR tcp_header;
+	UINT32 look_seq = 0;
+	UINT64 time = 0;
+	DWORD result = 0xFFFFFFFF;
+	while (TRUE)
+	{
+		if (!WinDivertRecv(handle, packet, MAXBUF, &packet_len, &addr))
+		{
+			DWORD err = GetLastError();
+			if (err == ERROR_NO_DATA) {
+				debug("latency_thread closed by shutdown");
+				break;
+			}
+			//if (err == ERROR_INVALID_HANDLE) {
+			//	info("latency_thread closed by invalid handle");
+			//	break;
+			//}
+			warning("[C] failed to read packet (%d)", err);
+			continue;
+		}
+		WinDivertHelperParsePacket(packet, packet_len, &ip_header, NULL, NULL,
+			NULL, NULL, &tcp_header, NULL, NULL, NULL, NULL, NULL);
+		if (ip_header == NULL || tcp_header == NULL)
+		{
+			warning("[C] failed to parse packet (%d)", GetLastError());
+			continue;
+		}
+		UINT16 payload_length = packet_len - (tcp_header->HdrLength << 2) - (ip_header->HdrLength << 2);
+		if (addr.Outbound) {
+			if (tcp_header->Psh && look_seq == 0) {
+				UINT32 SeqNum = ntohl(tcp_header->SeqNum);
+				look_seq = SeqNum + payload_length;
+				time = currentTimeMillis();
+			}
+		}
+		else {
+			if (tcp_header->Ack) {
+				UINT32 AckNum = ntohl(tcp_header->AckNum);
+				if (AckNum == look_seq) {
+					result = currentTimeMillis() - time;
+					break;
+				}
+				if (AckNum >= look_seq) {
+					look_seq = 0;
+				}
+			}
+		}
+	}
+	free(packet);
+	return result;
+}
+
+__declspec(dllexport) INT32 getLatency(char* fromIp, UINT16 fromPort, char* toIp, UINT16 toPort) {
+
+	char filter[256];
+	if (fromIp == 0) {
+		snprintf(filter, sizeof(filter),
+			"(tcp.SrcPort == %d and ip.DstAddr == %s and tcp.DstPort == %d)"
+			"or"
+			"(ip.SrcAddr == %s and tcp.SrcPort == %d and tcp.DstPort == %d)",
+			fromPort, toIp, toPort,
+			toIp, toPort, fromPort);
+	}
+	else {
+		snprintf(filter, sizeof(filter),
+			"(ip.SrcAddr == %s and tcp.SrcPort == %d and ip.DstAddr == %s and tcp.DstPort == %d)"
+			"or"
+			"(ip.SrcAddr == %s and tcp.SrcPort == %d and ip.DstAddr == %s and tcp.DstPort == %d)",
+			fromIp, fromPort, toIp, toPort,
+			toIp, toPort, fromIp, fromPort);
+	}
+	HANDLE handle = WinDivertOpen(filter, WINDIVERT_LAYER_NETWORK, 0, WINDIVERT_FLAG_SNIFF | WINDIVERT_FLAG_RECV_ONLY);
+	if (handle == 0 || handle == INVALID_HANDLE_VALUE) {
+		return -1;
+	}
+	INT32 result = -1;
+
+	HANDLE thread = CreateThread(NULL, 100 * 1024, getLatency_thread, handle, 0, 0);
+	if (thread == 0) {
+		return -1;
+	}
+	WaitForSingleObject(thread, 1000);
+	WinDivertShutdown(handle, WINDIVERT_SHUTDOWN_BOTH);
+	WaitForSingleObject(thread, INFINITE);
+	DWORD exitCode = 0;
+	if (GetExitCodeThread(thread, &exitCode)) {
+		result = exitCode;
+	}
+	return result;
+}
 
 DWORD WINAPI block_ip_thread(LPVOID lpParam)
 {
@@ -2247,15 +2585,17 @@ err:
 	return 0;
 }
 #include <jni.h>
-JNIEXPORT jlong JNICALL Java_net_java_faker_WinRedirect_redirectStart(JNIEnv* env, jclass cl, jint redirect_port, jstring jFilter, jint layer) {
+
+JNIEXPORT jlong JNICALL Java_net_java_faker_WinRedirect_redirectStart(JNIEnv* env, jclass cl, jint redirect_port, jstring jFilter, jint layer, jint default_latency) {
 	if (jFilter != NULL) {
 		const char* filter = (*env)->GetStringUTFChars(env, jFilter, 0);
-		jlong jRedirect = (jlong)redirect_start((UINT16)redirect_port, (char*)filter, (char)layer);
+		jlong jRedirect = (jlong)redirect_start((UINT16)redirect_port, (char*)filter, (char)layer, default_latency);
 		(*env)->ReleaseStringUTFChars(env, jFilter, filter);
 		return jRedirect;
 	}
-	return (jlong)redirect_start((UINT16)redirect_port, NULL, (char)layer);
+	return (jlong)redirect_start((UINT16)redirect_port, NULL, (char)layer, default_latency);
 }
+
 
 JNIEXPORT void JNICALL Java_net_java_faker_WinRedirect_redirectStop(JNIEnv* env, jclass cl, jlong jRedirect) {
 	redirect_stop((PREDIRECT)jRedirect);
@@ -2298,6 +2638,39 @@ JNIEXPORT jboolean JNICALL Java_net_java_faker_WinRedirect_redirectGetRealAddres
 	}
 
 	return ret;
+}
+
+JNIEXPORT jboolean JNICALL Java_net_java_faker_WinRedirect_redirectSetDefaultLatency(JNIEnv* env, jclass cl, jlong redirect, jint latency) {
+	return redirect_set_default_latency(redirect, latency);
+}
+
+JNIEXPORT jint JNICALL Java_net_java_faker_WinRedirect_redirectGetDefaultLatency(JNIEnv* env, jclass cl, jlong redirect) {
+	return redirect_get_default_latency(redirect);
+}
+
+JNIEXPORT jint JNICALL Java_net_java_faker_WinRedirect_getLatency(JNIEnv* env, jclass cl, jstring jfromIp, jint fromPort, jstring jtoIp, jint toPort) {
+	char* fromIp = jfromIp == 0 ? 0 : (*env)->GetStringUTFChars(env, jfromIp, 0);
+	char* toIp = (*env)->GetStringUTFChars(env, jtoIp, 0);
+	INT32 result = getLatency(fromIp, fromPort, toIp, toPort);
+	if (fromIp != 0) {
+		(*env)->ReleaseStringUTFChars(env, jfromIp, fromIp);
+	}
+	(*env)->ReleaseStringUTFChars(env, jtoIp, toIp);
+	return result;
+}
+
+JNIEXPORT jint JNICALL Java_net_java_faker_WinRedirect_getRedirectLatency(JNIEnv* env, jclass cl, jlong redirect, jstring jip, jint port) {
+	char* ip = (*env)->GetStringUTFChars(env, jip, 0);
+	int result = redirect_get_latency(redirect, ip, port);
+	(*env)->ReleaseStringUTFChars(env, jip, ip);
+	return result;
+}
+
+JNIEXPORT jboolean JNICALL Java_net_java_faker_WinRedirect_setRedirectLatency(JNIEnv* env, jclass cl, jlong redirect, jstring jip, jint port, jint latency) {
+	char* ip = (*env)->GetStringUTFChars(env, jip, 0);
+	BOOL result = redirect_set_latency(redirect, ip, port, latency);
+	(*env)->ReleaseStringUTFChars(env, jip, ip);
+	return result;
 }
 
 JNIEXPORT jint JNICALL Java_net_java_faker_WinRedirect_redirectGetActiveConnectionsCount(JNIEnv* env, jclass cl, jlong jRedirect) {

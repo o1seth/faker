@@ -25,13 +25,14 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.*;
 import io.netty.util.AttributeKey;
 import net.java.faker.Proxy;
+import net.java.faker.WinRedirect;
 import net.java.faker.auth.Account;
 import net.java.faker.proxy.PacketRegistry;
 import net.java.faker.proxy.packet.C2SAbstractPong;
 import net.java.faker.proxy.packet.C2SMovePlayer;
 import net.java.faker.proxy.packethandler.PacketHandler;
 import net.java.faker.proxy.util.CloseAndReturn;
-import net.java.faker.proxy.util.PacketUtils;
+import net.java.faker.proxy.util.LatencyMode;
 import net.java.faker.util.logging.Logger;
 import net.lenni0451.mcstructs.text.components.StringComponent;
 import net.raphimc.netminecraft.constants.ConnectionState;
@@ -48,10 +49,12 @@ import net.raphimc.netminecraft.util.ChannelType;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
-import java.util.*;
-import java.util.function.Function;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.IntConsumer;
-import java.util.function.Supplier;
 
 public class ProxyConnection extends NetClient {
 
@@ -89,6 +92,10 @@ public class ProxyConnection extends NetClient {
     private final boolean isRedirected;
     private final InetSocketAddress realSrcAddress;
     private final InetSocketAddress realDstAddress;
+    private LatencyMode latencyMode = LatencyMode.DISABLED;
+    private int latency;
+    private int connectTime = -1;// only for first ProxyConnection
+    private Consumer<ProxyConnection> latencyChange;
 
     public ProxyConnection(final ChannelInitializer<Channel> channelInitializerSupplier, final Channel c2p) {
         this(channelInitializerSupplier, c2p, null, null);
@@ -113,14 +120,28 @@ public class ProxyConnection extends NetClient {
             } else {
                 this.realDstAddress = null;
             }
-
         }
+        updateLatencyMode();
     }
 
     public static ProxyConnection fromChannel(final Channel channel) {
         return channel.attr(PROXY_CONNECTION_ATTRIBUTE_KEY).get();
     }
 
+    private void updateLatencyMode() {
+        InetSocketAddress remote = (InetSocketAddress) this.c2p.remoteAddress();
+        String ip = remote.getAddress().getHostAddress();
+        int port = remote.getPort();
+        int latency = WinRedirect.getRedirectLatency(Proxy.forward_redirect, ip, port);
+        if (latency == -1) {
+            latency = WinRedirect.getRedirectLatency(Proxy.redirect, ip, port);
+        }
+        if (latency > 0) {
+            this.latencyMode = LatencyMode.AUTO;
+            this.latency = latency;
+        }
+        System.out.println("LATENCY  " + latency + ", mode " + this.latencyMode);
+    }
 
     @Override
     @Deprecated
@@ -479,6 +500,55 @@ public class ProxyConnection extends NetClient {
     public boolean isForwardMode() {
         return isForwardMode;
     }
+
+    public LatencyMode getLatencyMode() {
+        return latencyMode;
+    }
+
+    public int getLatency() {
+        return latency;
+    }
+
+    public void setLatencyMode(LatencyMode latencyMode) {
+        this.latencyMode = latencyMode;
+        if (this.latencyMode == LatencyMode.DISABLED) {
+            this.latency = 0;
+            if (latencyChange != null) {
+                latencyChange.accept(this);
+            }
+        }
+    }
+
+    public void setLatencyChangeListener(Consumer<ProxyConnection> latencyChange) {
+        this.latencyChange = latencyChange;
+    }
+
+    public void setLatency(int latency) {
+        if (this.latencyMode != LatencyMode.DISABLED) {
+            if (this.latency != latency) {
+                this.latency = latency;
+                InetSocketAddress remote = (InetSocketAddress) this.c2p.remoteAddress();
+                String ip = remote.getAddress().getHostAddress();
+                int port = remote.getPort();
+                if (!WinRedirect.setRedirectLatency(Proxy.forward_redirect, ip, port, this.latency)) {
+                    WinRedirect.setRedirectLatency(Proxy.redirect, ip, port, this.latency);
+                }
+                if (latencyChange != null) {
+                    latencyChange.accept(this);
+                }
+            }
+        }
+
+    }
+
+    public void setConnectTime(int connectTime) {
+        this.connectTime = connectTime;
+    }
+
+    public int getConnectTime() {
+        return connectTime;
+    }
+
 
     private void removeHandlers(Channel channel) {
         if (channel == null) {

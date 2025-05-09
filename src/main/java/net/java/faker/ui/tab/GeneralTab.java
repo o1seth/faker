@@ -26,6 +26,7 @@ import net.java.faker.proxy.event.LoginEvent;
 import net.java.faker.proxy.event.RedirectStateChangeEvent;
 import net.java.faker.proxy.event.SwapEvent;
 import net.java.faker.proxy.session.ProxyConnection;
+import net.java.faker.proxy.util.LatencyMode;
 import net.java.faker.ui.GBC;
 import net.java.faker.ui.I18n;
 import net.java.faker.ui.UITab;
@@ -37,6 +38,8 @@ import net.java.faker.util.network.NetworkInterface;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -173,10 +176,20 @@ public class GeneralTab extends UITab {
 
             leftDevice = new JLabel(activeDeviceIcon);
             leftDevice.setAlignmentX(Component.CENTER_ALIGNMENT);
-
+            leftDevice.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    showLatencyDialog(leftConnection);
+                }
+            });
             rightDevice = new JLabel(inactiveDeviceIcon);
             rightDevice.setAlignmentX(Component.CENTER_ALIGNMENT);
-
+            rightDevice.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    showLatencyDialog(rightConnection);
+                }
+            });
             swap = new JButton(swapIcon);
             swap.addActionListener(e -> {
                 if (Proxy.dualConnection != null) {
@@ -330,6 +343,61 @@ public class GeneralTab extends UITab {
 
     }
 
+    private void showLatencyDialog(ProxyConnection proxyConnection) {
+        if (proxyConnection == null) {
+            return;
+        }
+        JPanel body = new JPanel(new BorderLayout());
+        JPanel panel = new JPanel();
+        panel.setLayout(new GridBagLayout());
+
+        int gridY = 0;
+        JLabel description = new JLabel("Latency for " + proxyConnection.getRealSrcAddress());
+        //I18n.link(description, "tab.dhcp.description.label", (t, s) -> t.setText("<html><p>" + I18n.get(s) + "</p></html>"));
+        GBC.create(panel).grid(0, gridY++).insets(BODY_BLOCK_PADDING, BORDER_PADDING, 0, BODY_BLOCK_PADDING).fill(GBC.BOTH).weight(1, 1).add(description);
+
+        JLabel latencyStatus = new JLabel("Latency: 0");
+        JSlider slider = new JSlider();
+        slider.setMinimum(0);
+        slider.setMaximum(250);
+        slider.addChangeListener(e -> latencyStatus.setText("Latency: " + slider.getValue()));
+
+        JComboBox<String> mode = new JComboBox<>(new String[]{"Disabled", "Auto", "Manual"});
+        proxyConnection.setLatencyChangeListener(p -> {
+            if (mode.getSelectedIndex() == 1) {
+                SwingUtilities.invokeLater(() -> slider.setValue(p.getLatency()));
+            }
+        });
+
+        mode.addActionListener(e -> {
+            latencyStatus.setEnabled(mode.getSelectedIndex() != 0);
+            slider.setEnabled(mode.getSelectedIndex() == 2);
+            if (mode.getSelectedIndex() == 1) {
+                slider.setValue(proxyConnection.getLatency());
+            }
+            if (mode.getSelectedIndex() == 0) {
+                slider.setValue(0);
+            }
+        });
+
+        mode.setSelectedIndex(proxyConnection.getLatencyMode().ordinal());
+        slider.setValue(proxyConnection.getLatency());
+        GBC.create(panel).grid(0, gridY++).insets(BODY_BLOCK_PADDING, BORDER_PADDING, 0, BODY_BLOCK_PADDING).fill(GBC.BOTH).weight(1, 1).add(mode);
+        GBC.create(panel).grid(0, gridY++).insets(BODY_BLOCK_PADDING, BORDER_PADDING, 0, BODY_BLOCK_PADDING).fill(GBC.BOTH).weight(1, 1).add(latencyStatus);
+        GBC.create(panel).grid(0, gridY++).insets(BODY_BLOCK_PADDING, BORDER_PADDING, 0, BODY_BLOCK_PADDING).fill(GBC.BOTH).weight(1, 1).add(slider);
+
+        body.add(panel, BorderLayout.NORTH);
+
+        if (Window.showDialog(body) == JOptionPane.OK_OPTION) {
+            proxyConnection.setLatencyMode(LatencyMode.values()[mode.getSelectedIndex()]);
+            proxyConnection.setLatency(slider.getValue());
+            if (Proxy.getConfig().autoLatency.get() && mode.getSelectedIndex() == 2) {
+                WinRedirect.redirectSetDefaultLatency(Proxy.forward_redirect, slider.getValue());
+            }
+        }
+        proxyConnection.setLatencyChangeListener(null);
+    }
+
     private void setComponentsEnabled(final boolean state) {
         this.serverAddress.setEnabled(state);
         this.accounts.setEnabled(state);
@@ -343,6 +411,8 @@ public class GeneralTab extends UITab {
             this.window.advancedTab.mdnsDisable.setEnabled(state);
             this.window.advancedTab.routerSpoof.setEnabled(state);
             this.window.advancedTab.blockTraffic.setEnabled(state);
+            this.window.advancedTab.allowDirectConnection.setEnabled(state);
+            this.window.advancedTab.autoLatency.setEnabled(state);
             this.window.advancedTab.updateNetworkAdapterEnabled(null);
         }
     }

@@ -230,4 +230,7 @@ public class Window extends JFrame {
         JOptionPane.showMessageDialog(Window.getInstance(), message, "Faker", type);
     }
 
+    public static int showDialog(JPanel panel) {
+        return JOptionPane.showConfirmDialog(null, panel, "Faker", JOptionPane.DEFAULT_OPTION, JOptionPane.PLAIN_MESSAGE);
+    }
 }

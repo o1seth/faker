@@ -47,6 +47,7 @@ public class AdvancedTab extends UITab {
     JCheckBox blockTraffic;
 
     JCheckBox allowDirectConnection;
+    JCheckBox autoLatency;
     NetworkAdapterComboBox networkAdapters;
     JTextField proxy;
 
@@ -178,7 +179,13 @@ public class AdvancedTab extends UITab {
 
             checkboxes.add(this.allowDirectConnection);
         }
-
+        {
+            this.autoLatency = new JCheckBox();
+            I18n.link(autoLatency, "tab.advanced.auto_latency.label");
+            I18n.linkTooltip(autoLatency, "tab.advanced.auto_latency.tooltip");
+            this.autoLatency.setSelected(Proxy.getConfig().autoLatency.get());
+            checkboxes.add(this.autoLatency);
+        }
         {
             //just empty
             checkboxes.add(Box.createHorizontalBox());
@@ -201,18 +208,23 @@ public class AdvancedTab extends UITab {
 
         GBC.create(body).grid(0, gridy++).insets(BODY_BLOCK_PADDING, BORDER_PADDING, 0, BODY_BLOCK_PADDING).fill(GBC.BOTH).weight(1, 1).add(checkboxes);
         {
+            JPanel proxyBody = new JPanel();
+            proxyBody.setLayout(new GridLayout(2, 0, 0, 0));
+            proxyBody.setBorder(BorderFactory.createEmptyBorder(0, BORDER_PADDING, BORDER_PADDING, BORDER_PADDING));
             JLabel proxyLabel = new JLabel();
             I18n.link(proxyLabel, "tab.advanced.proxy_url.label");
             I18n.linkTooltip(proxyLabel, "tab.advanced.proxy_url.tooltip");
-            GBC.create(body).grid(0, gridy++).insets(BODY_BLOCK_PADDING, BORDER_PADDING, 0, 0).anchor(GBC.NORTHWEST).add(proxyLabel);
-
+            proxyBody.add(proxyLabel);
             this.proxy = new JTextField();
             I18n.linkTooltip(proxy, "tab.advanced.proxy_url.tooltip");
-            this.proxy.setText(Proxy.getConfig().proxy.get());
-            GBC.create(body).grid(0, gridy++).insets(0, BORDER_PADDING, 0, BORDER_PADDING).fill(GBC.HORIZONTAL).add(this.proxy);
+//            this.proxy.setText(Proxy.getConfig().proxy.get());
+            proxyBody.add(this.proxy);
+            parent.add(proxyBody, BorderLayout.SOUTH);
         }
 
+
         parent.add(body, BorderLayout.NORTH);
+
     }
 
     void updateNetworkAdapterEnabled(ActionEvent e) {
@@ -235,6 +247,7 @@ public class AdvancedTab extends UITab {
             Proxy.getConfig().blockTraffic.set(this.blockTraffic.isSelected());
             Proxy.getConfig().routerSpoof.set(this.routerSpoof.isSelected());
             Proxy.getConfig().allowDirectConnection.set(this.allowDirectConnection.isSelected());
+            Proxy.getConfig().autoLatency.set(this.autoLatency.isSelected());
             if (this.networkAdapters.getSelectedItem() == NetworkInterface.NULL) {
                 Proxy.getConfig().targetAdapter.set("null");
             } else if (this.networkAdapters.getSelectedItem() instanceof NetworkInterface ni) {

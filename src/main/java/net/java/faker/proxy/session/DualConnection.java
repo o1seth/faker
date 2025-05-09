@@ -21,16 +21,19 @@ package net.java.faker.proxy.session;
 
 import io.netty.channel.Channel;
 import net.java.faker.Proxy;
+import net.java.faker.WinRedirect;
 import net.java.faker.proxy.event.SwapEvent;
 import net.java.faker.proxy.packet.C2SAbstractPong;
 import net.java.faker.proxy.packet.C2SPlayerCommand;
 import net.java.faker.proxy.packet.S2CSetPassengers;
 import net.java.faker.proxy.util.ChannelUtil;
+import net.java.faker.proxy.util.LatencyMode;
 import net.java.faker.proxy.util.chat.ChatSession1_19_3;
 import net.raphimc.netminecraft.constants.ConnectionState;
 import net.raphimc.netminecraft.constants.MCPipeline;
 import net.raphimc.netminecraft.constants.MCVersion;
 
+import java.net.InetSocketAddress;
 import java.util.Collections;
 import java.util.List;
 
@@ -61,10 +64,23 @@ public class DualConnection {
     private boolean firstSwap = true;
     private List<C2SAbstractPong> skipPongs = Collections.emptyList();
     private long lastSwapControllerTime;
+    private int connectTime;
+    private LatencyChecker latencyChecker;
+    private int avgLatency;
+    private int minLatency = Integer.MAX_VALUE;
 
     public DualConnection(ProxyConnection mainConnection) {
         this.mainConnection = mainConnection;
         this.controllerLocker = mainConnection.controllerLocker;
+    }
+
+    public void startLatencyChecker() {
+        if (this.latencyChecker != null) {
+            return;
+        }
+        this.latencyChecker = new LatencyChecker();
+        this.latencyChecker.start();
+        this.connectTime = mainConnection.getConnectTime();
     }
 
     public boolean isP2sEncrypted() {
@@ -295,9 +311,61 @@ public class DualConnection {
         this.chatSession1_19_3 = chatSession1_19_3;
     }
 
+    public int getConnectTime() {
+        return connectTime;
+    }
 
     public ChatSession1_19_3 getChatSession1_19_3() {
         return chatSession1_19_3;
     }
 
+
+    private class LatencyChecker extends Thread {
+        @Override
+        public void run() {
+            Channel channel = mainConnection.getChannel();
+            int fromPort = ((InetSocketAddress) channel.localAddress()).getPort();
+            InetSocketAddress connectAddress = (InetSocketAddress) mainConnection.getServerAddress();
+            String toIp = connectAddress.getAddress().getHostAddress();
+            int toPort = connectAddress.getPort();
+            int latencySum = 0;
+            int latencyCount = 0;
+            minLatency = Integer.MAX_VALUE;
+            int newLatency = 0;
+            while (!isInterrupted()) {
+                if (!channel.isOpen()) {
+                    break;
+                }
+
+                int latency = WinRedirect.getLatency(null, fromPort, toIp, toPort);
+                if (latency < getConnectTime() * 3 && latency > 2) {
+                    latencySum += latency;
+                    latencyCount++;
+                    avgLatency = latencySum / latencyCount;
+                    if (latency < minLatency) {
+                        minLatency = latency;
+                    }
+                }
+                if (newLatency != (minLatency + avgLatency) / 2) {
+                    newLatency = (minLatency + avgLatency) / 2;
+                    if (mainConnection.getLatencyMode() == LatencyMode.AUTO) {
+                        mainConnection.setLatency(newLatency);
+                    }
+                    if (sideConnection != null && sideConnection.getLatencyMode() == LatencyMode.AUTO) {
+                        sideConnection.setLatency(newLatency);
+                    }
+                    if (Proxy.getConfig().autoLatency.get()) {
+                        WinRedirect.redirectSetDefaultLatency(Proxy.forward_redirect, newLatency);
+                    }
+                }
+
+                try {
+                    Thread.sleep(750);
+                } catch (Exception e) {
+
+                }
+
+            }
+        }
+    }
 }
