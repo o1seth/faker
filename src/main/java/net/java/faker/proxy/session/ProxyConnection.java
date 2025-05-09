@@ -129,6 +129,11 @@ public class ProxyConnection extends NetClient {
     }
 
     private void updateLatencyMode() {
+        if (!WinRedirect.isSupported()) {
+            this.latencyMode = LatencyMode.DISABLED;
+            this.latency = 0;
+            return;
+        }
         InetSocketAddress remote = (InetSocketAddress) this.c2p.remoteAddress();
         String ip = remote.getAddress().getHostAddress();
         int port = remote.getPort();
@@ -140,7 +145,6 @@ public class ProxyConnection extends NetClient {
             this.latencyMode = LatencyMode.AUTO;
             this.latency = latency;
         }
-        System.out.println("LATENCY  " + latency + ", mode " + this.latencyMode);
     }
 
     @Override

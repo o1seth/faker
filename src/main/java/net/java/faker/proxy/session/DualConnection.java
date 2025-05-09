@@ -78,8 +78,10 @@ public class DualConnection {
         if (this.latencyChecker != null) {
             return;
         }
-        this.latencyChecker = new LatencyChecker();
-        this.latencyChecker.start();
+        if (WinRedirect.isSupported()) {
+            this.latencyChecker = new LatencyChecker();
+            this.latencyChecker.start();
+        }
         this.connectTime = mainConnection.getConnectTime();
     }
 

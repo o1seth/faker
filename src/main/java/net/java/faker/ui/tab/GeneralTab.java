@@ -344,6 +344,9 @@ public class GeneralTab extends UITab {
     }
 
     private void showLatencyDialog(ProxyConnection proxyConnection) {
+        if (!WinRedirect.isSupported()) {
+            return;
+        }
         if (proxyConnection == null) {
             return;
         }

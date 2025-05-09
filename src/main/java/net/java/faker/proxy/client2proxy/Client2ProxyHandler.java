@@ -58,22 +58,28 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
         super.channelActive(ctx);
-        if (ctx.channel().localAddress() instanceof InetSocketAddress isa) {
+        if (ctx.channel().localAddress() instanceof InetSocketAddress isa && Proxy.getTargetAddress() == null) {
             if (Proxy.connectedAddresses.contains(isa)) {
                 Logger.u_info("disconnect", "Loopback connection closed " + isa);
                 ctx.close();
                 return;
             }
         }
-
-        InetSocketAddress remote = (InetSocketAddress) ctx.channel().remoteAddress();
-        InetSocketAddress[] addresses = new InetSocketAddress[2];
-        if (!WinRedirect.redirectGetRealAddresses(Proxy.forward_redirect, remote.getAddress().getHostAddress(), remote.getPort(), addresses)) {
-            WinRedirect.redirectGetRealAddresses(Proxy.redirect, remote.getAddress().getHostAddress(), remote.getPort(), addresses);
+        InetSocketAddress realSrc = null;
+        InetSocketAddress realDst = null;
+        if (WinRedirect.isSupported()) {
+            InetSocketAddress remote = (InetSocketAddress) ctx.channel().remoteAddress();
+            InetSocketAddress[] addresses = new InetSocketAddress[2];
+            if (!WinRedirect.redirectGetRealAddresses(Proxy.forward_redirect, remote.getAddress().getHostAddress(), remote.getPort(), addresses)) {
+                WinRedirect.redirectGetRealAddresses(Proxy.redirect, remote.getAddress().getHostAddress(), remote.getPort(), addresses);
+            }
+            realSrc = addresses[0];
+            realDst = addresses[1];
         }
 
+
         final Supplier<ChannelHandler> handlerSupplier = Proxy2ServerHandler::new;
-        this.proxyConnection = new ProxyConnection(new Proxy2ServerChannelInitializer(handlerSupplier), ctx.channel(), addresses[0], addresses[1]);
+        this.proxyConnection = new ProxyConnection(new Proxy2ServerChannelInitializer(handlerSupplier), ctx.channel(), realSrc, realDst);
         ctx.channel().attr(CLIENT_2_PROXY_ATTRIBUTE_KEY).set(this);
 
         Proxy.getConnectedClients().add(ctx.channel());
@@ -84,7 +90,7 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         super.channelInactive(ctx);
 
-        Logger.u_info("disconnect", this.proxyConnection, "Connection closed (client->proxy)");
+        Logger.u_info("disconnect", this.proxyConnection, "Connection closed (client->proxy)!");
         DualConnection dualConnection = this.proxyConnection.dualConnection;
         if (dualConnection != null) {
 
@@ -322,9 +328,15 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
                 Logger.warn("Temp redirect " + connectAddress);
             }
         }
+        if (connectAddress == null) {
+            try {
+                this.proxyConnection.getC2P().close();
+            } catch (Throwable ignored) {
+            }
+            return;
+        }
         this.proxyConnection.setClientHandshakeAddress(new InetSocketAddress(packet.address, packet.port));
         ChannelUtil.disableAutoRead(this.proxyConnection.getC2P());
-
         this.connect(connectAddress, handshakeAddress, packet, Proxy.getAccount());
     }
 
@@ -423,6 +435,9 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
     }
 
     private boolean checkLoopbackConnection(InetSocketAddress serverAddress) {
+        if (Proxy.getTargetAddress() != null) {
+            return false;
+        }
         if (Proxy.proxyAddress.getAddress().isAnyLocalAddress()) {
             if (serverAddress.getAddress().isLoopbackAddress() && Proxy.proxyAddress.getPort() == serverAddress.getPort()) {
                 Logger.u_info("disconnect", this.proxyConnection, "Cancel loopback connection");

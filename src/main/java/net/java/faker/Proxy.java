@@ -519,6 +519,9 @@ public class Proxy {
     }
 
     private static void startBlockTraffic(Inet4Address targetAddress) {
+        if (!WinRedirect.isSupported()) {
+            return;
+        }
         NetworkInterface internetInterface = NetworkUtil.getInternetInterface();
         if (internetInterface == null) {
             Logger.error("(block traffic) Internet adapter not found");
