@@ -18,7 +18,10 @@
 
 package net.java.faker.save;
 
-import com.google.gson.*;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.google.gson.Strictness;
 import com.google.gson.internal.Streams;
 import com.google.gson.stream.JsonWriter;
 import net.java.faker.util.logging.Logger;
@@ -52,6 +55,7 @@ public class Config {
     public final StringValue dhcp_dns1 = registerString("DHCP_dns1");
     public final StringValue dhcp_dns2 = registerString("DHCP_dns2");
     public final BooleanValue dhcp_started = registerBoolean("DHCP_started");
+    public final StringArrayValue lastServersValue = registerStringArray("LastServers");
     private InetSocketAddress targetHandshakeAddress = setTargetHandshakeAddress((String) null);
 
     public final StringValue proxy = registerString("proxy");
@@ -111,6 +115,12 @@ public class Config {
 
     private StringValue registerString(String name) {
         StringValue value = new StringValue(name);
+        this.values.add(value);
+        return value;
+    }
+
+    private StringArrayValue registerStringArray(String name) {
+        StringArrayValue value = new StringArrayValue(name);
         this.values.add(value);
         return value;
     }

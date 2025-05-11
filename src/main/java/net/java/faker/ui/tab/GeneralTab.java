@@ -27,6 +27,7 @@ import net.java.faker.proxy.event.RedirectStateChangeEvent;
 import net.java.faker.proxy.event.SwapEvent;
 import net.java.faker.proxy.session.ProxyConnection;
 import net.java.faker.proxy.util.LatencyMode;
+import net.java.faker.save.Config;
 import net.java.faker.ui.GBC;
 import net.java.faker.ui.I18n;
 import net.java.faker.ui.UITab;
@@ -73,7 +74,7 @@ public class GeneralTab extends UITab {
     }
 
 
-    JTextField serverAddress;
+    JComboBox<String> serverAddress;
 
     JComboBox<Account> accounts;
     JLabel stateLabel;
@@ -133,9 +134,11 @@ public class GeneralTab extends UITab {
             I18n.linkTooltip(serverAddressLabel, "tab.general.server_address.tooltip");
             GBC.create(body).grid(0, gridy++).insets(BODY_BLOCK_PADDING, BORDER_PADDING, 0, 0).anchor(GBC.NORTHWEST).add(serverAddressLabel);
 
-            this.serverAddress = new JTextField();
+            this.serverAddress = new JComboBox<>(Proxy.getConfig().lastServersValue.reverseArray());
+            this.serverAddress.setEditable(true);
             I18n.linkTooltip(serverAddress, "tab.general.server_address.tooltip");
-            this.serverAddress.setText(Proxy.getConfig().getServerAddress());
+            this.serverAddress.setSelectedItem(Proxy.getConfig().getServerAddress());
+//            this.serverAddress.setText();
             GBC.create(body).grid(0, gridy++).weightx(1).insets(0, BORDER_PADDING, 0, BORDER_PADDING).fill(GBC.HORIZONTAL).add(this.serverAddress);
 
             JLabel minecraftAccountLabel = new JLabel();
@@ -440,12 +443,19 @@ public class GeneralTab extends UITab {
         }
         I18n.link(GeneralTab.this.startButton, "tab.general.state.starting");
         new Thread(() -> {
-            final String serverAddress = this.serverAddress.getText().trim();
+            final String serverAddress = this.getSelectedServerAddress();
             try {
                 try {
 
                     try {
-                        Proxy.getConfig().setServerAddress(serverAddress);
+                        Config config = Proxy.getConfig();
+                        config.setServerAddress(serverAddress);
+                        config.lastServersValue.removeIgnoreCase(serverAddress);
+                        config.lastServersValue.add(serverAddress);
+                        while (config.lastServersValue.size() > 6) {
+                            config.lastServersValue.remove(0);
+                        }
+
                     } catch (Throwable t) {
                         throw new IllegalArgumentException(I18n.get("tab.general.error.invalid_server_address"));
                     }
@@ -491,6 +501,8 @@ public class GeneralTab extends UITab {
                 }
 
                 SwingUtilities.invokeLater(() -> {
+                    this.serverAddress.setModel(new DefaultComboBoxModel<>(Proxy.getConfig().lastServersValue.reverseArray()));
+                    this.serverAddress.setSelectedItem(serverAddress);
                     this.updateStateLabel();
                     if (this.pauseButton != null) {
                         this.pauseButton.setEnabled(true);
@@ -537,8 +549,15 @@ public class GeneralTab extends UITab {
         timer.start();
     }
 
+    public String getSelectedServerAddress() {
+        if (this.serverAddress.getSelectedItem() == null) {
+            return "";
+        }
+        return this.serverAddress.getSelectedItem().toString().trim();
+    }
+
     public void applyGuiState() {
-        Proxy.getConfig().setServerAddress(this.serverAddress.getText());
+        Proxy.getConfig().setServerAddress(this.getSelectedServerAddress());
         if (this.accounts.getSelectedItem() instanceof Account account) {
             Proxy.getConfig().account.set(account.getName());
         } else {
