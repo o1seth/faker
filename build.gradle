@@ -5,7 +5,7 @@ plugins {
 }
 
 group = 'net.java'
-version = '1.3'
+version = '1.4'
 base {
     compileJava.options.encoding = compileTestJava.options.encoding = javadoc.options.encoding = "UTF-8"
 }

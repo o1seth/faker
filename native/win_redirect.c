@@ -2487,10 +2487,12 @@ __declspec(dllexport) INT32 getLatency(char* fromIp, UINT16 fromPort, char* toIp
 	WaitForSingleObject(thread, 1000);
 	WinDivertShutdown(handle, WINDIVERT_SHUTDOWN_BOTH);
 	WaitForSingleObject(thread, INFINITE);
+	WinDivertClose(handle);
 	DWORD exitCode = 0;
 	if (GetExitCodeThread(thread, &exitCode)) {
 		result = exitCode;
-	}
+	}	
+	CloseHandle(thread);
 	return result;
 }
 

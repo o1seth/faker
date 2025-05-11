@@ -338,7 +338,6 @@ public class DualConnection {
                 if (!channel.isOpen()) {
                     break;
                 }
-
                 int latency = WinRedirect.getLatency(null, fromPort, toIp, toPort);
                 if (latency < getConnectTime() * 3 && latency > 2) {
                     latencySum += latency;
@@ -360,7 +359,6 @@ public class DualConnection {
                         WinRedirect.redirectSetDefaultLatency(Proxy.forward_redirect, newLatency);
                     }
                 }
-
                 try {
                     Thread.sleep(750);
                 } catch (Exception e) {
