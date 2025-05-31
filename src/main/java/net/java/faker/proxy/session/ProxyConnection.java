@@ -93,7 +93,8 @@ public class ProxyConnection extends NetClient {
     private final InetSocketAddress realSrcAddress;
     private final InetSocketAddress realDstAddress;
     private LatencyMode latencyMode = LatencyMode.DISABLED;
-    private int latency;
+    private int latencyIn;
+    private int latencyOut;
     private int connectTime = -1;// only for first ProxyConnection
     private Consumer<ProxyConnection> latencyChange;
 
@@ -131,19 +132,21 @@ public class ProxyConnection extends NetClient {
     private void updateLatencyMode() {
         if (!WinRedirect.isSupported()) {
             this.latencyMode = LatencyMode.DISABLED;
-            this.latency = 0;
+            this.latencyIn = 0;
+            this.latencyOut = 0;
             return;
         }
         InetSocketAddress remote = (InetSocketAddress) this.c2p.remoteAddress();
         String ip = remote.getAddress().getHostAddress();
         int port = remote.getPort();
-        int latency = WinRedirect.getRedirectLatency(Proxy.forward_redirect, ip, port);
-        if (latency == -1) {
-            latency = WinRedirect.getRedirectLatency(Proxy.redirect, ip, port);
+        int[] latencies = new int[2];
+        if (!WinRedirect.getRedirectLatency(Proxy.forward_redirect, ip, port, latencies)) {
+            WinRedirect.getRedirectLatency(Proxy.redirect, ip, port, latencies);
         }
-        if (latency > 0) {
+        if (latencies[0] > 0 || latencies[1] > 0) {
             this.latencyMode = LatencyMode.AUTO;
-            this.latency = latency;
+            this.latencyIn = latencies[0];
+            this.latencyOut = latencies[1];
         }
     }
 
@@ -509,14 +512,19 @@ public class ProxyConnection extends NetClient {
         return latencyMode;
     }
 
-    public int getLatency() {
-        return latency;
+    public int getLatencyIn() {
+        return latencyIn;
+    }
+
+    public int getLatencyOut() {
+        return latencyOut;
     }
 
     public void setLatencyMode(LatencyMode latencyMode) {
         this.latencyMode = latencyMode;
         if (this.latencyMode == LatencyMode.DISABLED) {
-            this.latency = 0;
+            this.latencyIn = 0;
+            this.latencyOut = 0;
             if (latencyChange != null) {
                 latencyChange.accept(this);
             }
@@ -527,22 +535,27 @@ public class ProxyConnection extends NetClient {
         this.latencyChange = latencyChange;
     }
 
-    public void setLatency(int totalLatency) {
+    public void setLatency(int latencyIn, int latencyOut) {
         if (this.latencyMode != LatencyMode.DISABLED) {
-            if (this.latency != totalLatency) {
-                this.latency = totalLatency;
+            if (this.latencyIn != latencyIn || this.latencyOut != latencyOut) {
+                this.latencyIn = latencyIn;
+                this.latencyOut = latencyOut;
                 InetSocketAddress remote = (InetSocketAddress) this.c2p.remoteAddress();
                 String ip = remote.getAddress().getHostAddress();
                 int port = remote.getPort();
-                int halfLatency = totalLatency / 2;
-                if (!WinRedirect.setRedirectLatency(Proxy.forward_redirect, ip, port, halfLatency, halfLatency)) {
-                    WinRedirect.setRedirectLatency(Proxy.redirect, ip, port, halfLatency, halfLatency);
+                if (!WinRedirect.setRedirectLatency(Proxy.forward_redirect, ip, port, latencyIn, latencyOut)) {
+                    WinRedirect.setRedirectLatency(Proxy.redirect, ip, port, latencyIn, latencyOut);
                 }
                 if (latencyChange != null) {
                     latencyChange.accept(this);
                 }
             }
         }
+    }
+
+    public void setLatency(int totalLatency) {
+        // For backward compatibility, split total latency evenly
+        setLatency(totalLatency, totalLatency);
     }
 
     public void setConnectTime(int connectTime) {

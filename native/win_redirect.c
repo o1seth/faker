@@ -1156,8 +1156,8 @@ DWORD WINAPI redirect_in(LPVOID lpParam)
 						c->syn_AckNum = tcp_header->AckNum;
 						c->syn_SeqNum = tcp_header->SeqNum;
 						c->handle = out_handle;
-						c->packets_latency_in = redirect->default_packets_latency / 2;   // Split default latency
-						c->packets_latency_out = redirect->default_packets_latency / 2;  // Split default latency
+						c->packets_latency_in = redirect->default_packets_latency;   // Use full value for inbound
+						c->packets_latency_out = redirect->default_packets_latency;  // Use full value for outbound
 						con = c;
 						if (is_debug()) {
 							sprint_tcp_src_dst(ip_header, tcp_header, &addr, msg);
@@ -1226,7 +1226,7 @@ DWORD WINAPI redirect_in(LPVOID lpParam)
 					debug("[C] Correct close");
 				}
 				else {
-					debug("[C] NOT fin acknum, seqnum! %lu != %lu or %lu != %lu", con->client_fin_ack + 1, ntohl(tcp_header->AckNum), con->client_fin_seq + 1, ntohl(tcp_header->SeqNum));
+					debug("[C] NOT fin acknum, seqnum! %lu != %lu or %lu != %lu", c->client_fin_ack + 1, ntohl(tcp_header->AckNum), c->client_fin_seq + 1, ntohl(tcp_header->SeqNum));
 				}
 			}
 			con->LastPacketTime = GetTickCount64();
@@ -1341,7 +1341,7 @@ __declspec(dllexport) BOOL redirect_get_real_addresses(PREDIRECT r, char* ip, UI
 	ReleaseMutex(lock);
 	return FALSE;
 }
-__declspec(dllexport) BOOL redirect_set_latency(PREDIRECT r, char* ip, UINT16 port, int latency) {
+__declspec(dllexport) BOOL redirect_set_latency(PREDIRECT r, char* ip, UINT16 port, int latency_in, int latency_out) {
 	if (r == NULL) {
 		error("null");
 		return FALSE;
@@ -1361,8 +1361,8 @@ __declspec(dllexport) BOOL redirect_set_latency(PREDIRECT r, char* ip, UINT16 po
 			continue;
 		}
 		if (c->FakeSrcIp == addr) {
-			c->packets_latency_in = latency / 2;
-			c->packets_latency_out = latency / 2;
+			c->packets_latency_in = latency_in;   // Set inbound latency
+			c->packets_latency_out = latency_out; // Set outbound latency
 			ReleaseMutex(lock);
 			return TRUE;
 		}
@@ -1371,13 +1371,13 @@ __declspec(dllexport) BOOL redirect_set_latency(PREDIRECT r, char* ip, UINT16 po
 	return FALSE;
 }
 
-__declspec(dllexport) int redirect_get_latency(PREDIRECT r, char* ip, UINT16 port) {
+__declspec(dllexport) BOOL redirect_get_latency(PREDIRECT r, char* ip, UINT16 port, int* latency_in, int* latency_out) {
 	if (r == NULL) {
 		error("null");
-		return -1;
+		return FALSE;
 	}
 	if (ip == NULL) {
-		return -1;
+		return FALSE;
 	}
 
 	UINT32 addr = ip4(ip);
@@ -1391,13 +1391,14 @@ __declspec(dllexport) int redirect_get_latency(PREDIRECT r, char* ip, UINT16 por
 			continue;
 		}
 		if (c->FakeSrcIp == addr) {
-			int latency = c->packets_latency_in;
+			*latency_in = c->packets_latency_in;
+			*latency_out = c->packets_latency_out;
 			ReleaseMutex(lock);
-			return latency;
+			return TRUE;
 		}
 	}
 	ReleaseMutex(lock);
-	return -1;
+	return FALSE;
 }
 
 __declspec(dllexport) UINT32 redirect_get_active_connections_count(PREDIRECT r) {
@@ -2672,9 +2673,9 @@ JNIEXPORT jint JNICALL Java_net_java_faker_WinRedirect_getRedirectLatency(JNIEnv
 	return result;
 }
 
-JNIEXPORT jboolean JNICALL Java_net_java_faker_WinRedirect_setRedirectLatency(JNIEnv* env, jclass cl, jlong redirect, jstring jip, jint port, jint latency) {
+JNIEXPORT jboolean JNICALL Java_net_java_faker_WinRedirect_setRedirectLatency(JNIEnv* env, jclass cl, jlong redirect, jstring jip, jint port, jint latency_in, jint latency_out) {
 	char* ip = (*env)->GetStringUTFChars(env, jip, 0);
-	BOOL result = redirect_set_latency(redirect, ip, port, latency);
+	BOOL result = redirect_set_latency(redirect, ip, port, latency_in, latency_out);
 	(*env)->ReleaseStringUTFChars(env, jip, ip);
 	return result;
 }
