@@ -97,7 +97,8 @@ typedef struct
 	HANDLE delayed_packet_lock;
 	PDELAYED_PACKET delayed_packets;
 	PDELAYED_PACKET delayed_packets_last;
-	int packets_latency;
+	int packets_latency_in;   // New: for server->client
+	int packets_latency_out;  // New: for client->server
 } TCP_CONNECTION, * PTCP_CONNECTION;
 
 typedef struct
@@ -784,7 +785,7 @@ BOOL handle_out_packet(PTCP_CONNECTION con, unsigned char* packet, UINT packet_l
 	return FALSE;
 }
 
-void send_delayed_packets(PTCP_CONNECTION con, int delay) {
+void send_delayed_packets(PTCP_CONNECTION con, int delay, BOOL is_outbound) {
 	PDELAYED_PACKET delayed_packet = con->delayed_packets;
 	WINDIVERT_ADDRESS addr;
 	HANDLE handle = con->handle;
@@ -837,13 +838,13 @@ DWORD WINAPI delayed_packet_thread(LPVOID lpParam)
 		if (con->closed) {
 			break;
 		}
-		if (con->packets_latency > 0 && con->delayed_packets != 0) {
+		if (con->packets_latency_out > 0 && con->delayed_packets != 0) {
 			WaitForSingleObject(lock, INFINITE);
 			if (con->established) {
-				send_delayed_packets(con, con->packets_latency * 3 / 2);
+				send_delayed_packets(con, con->packets_latency_out, TRUE);
 			}
 			else {
-				send_delayed_packets(con, con->packets_latency);
+				send_delayed_packets(con, con->packets_latency_out, TRUE);
 			}
 			ReleaseMutex(lock);
 		}
@@ -895,12 +896,12 @@ DWORD WINAPI redirect_out(LPVOID lpParam)
 			warning("failed to parse packet (%d)", GetLastError());
 			continue;
 		}
-		if (con->packets_latency > 0) {
+		if (con->packets_latency_out > 0) {
 			HANDLE lock = con->delayed_packet_lock;
 			UINT64 cur_time = currentTimeMillis();
 			{
 				WaitForSingleObject(lock, INFINITE);
-				send_delayed_packets(con, con->packets_latency);
+				send_delayed_packets(con, con->packets_latency_out, TRUE);
 				ReleaseMutex(lock);
 			}
 			UINT16 payload_length = packet_len - (tcp_header->HdrLength << 2) - (ip_header->HdrLength << 2);
@@ -1155,7 +1156,8 @@ DWORD WINAPI redirect_in(LPVOID lpParam)
 						c->syn_AckNum = tcp_header->AckNum;
 						c->syn_SeqNum = tcp_header->SeqNum;
 						c->handle = out_handle;
-						c->packets_latency = redirect->default_packets_latency;
+						c->packets_latency_in = redirect->default_packets_latency / 2;   // Split default latency
+						c->packets_latency_out = redirect->default_packets_latency / 2;  // Split default latency
 						con = c;
 						if (is_debug()) {
 							sprint_tcp_src_dst(ip_header, tcp_header, &addr, msg);
@@ -1175,16 +1177,17 @@ DWORD WINAPI redirect_in(LPVOID lpParam)
 			}
 		}
 		if (con != 0) {
-			if (con->packets_latency > 0) {
+			if (con->packets_latency_in > 0) {
 				HANDLE lock = con->delayed_packet_lock;
 				WaitForSingleObject(lock, INFINITE);
-				send_delayed_packets(con, con->packets_latency);
+				send_delayed_packets(con, con->packets_latency_in, FALSE);  // Added FALSE for inbound
 				ReleaseMutex(lock);
 			}
 			prevAck = tcp_header->AckNum;
 			prevSeq = tcp_header->SeqNum;
 
 			ip_header->TTL++;
+			
 			ip_header->SrcAddr = con->FakeSrcIp;
 			tcp_header->SrcPort = nbinded_port;
 			ip_header->DstAddr = redirect_ip;
@@ -1358,7 +1361,8 @@ __declspec(dllexport) BOOL redirect_set_latency(PREDIRECT r, char* ip, UINT16 po
 			continue;
 		}
 		if (c->FakeSrcIp == addr) {
-			c->packets_latency = latency;
+			c->packets_latency_in = latency / 2;
+			c->packets_latency_out = latency / 2;
 			ReleaseMutex(lock);
 			return TRUE;
 		}
@@ -1387,7 +1391,7 @@ __declspec(dllexport) int redirect_get_latency(PREDIRECT r, char* ip, UINT16 por
 			continue;
 		}
 		if (c->FakeSrcIp == addr) {
-			int latency = c->packets_latency;
+			int latency = c->packets_latency_in;
 			ReleaseMutex(lock);
 			return latency;
 		}

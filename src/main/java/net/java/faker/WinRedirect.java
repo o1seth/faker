@@ -85,7 +85,7 @@ public class WinRedirect {
         NETWORK, NETWORK_FORWARD
     }
 
-    public static native boolean setRedirectLatency(long redirect, String ip, int port, int latency);
+    public static native boolean setRedirectLatency(long redirect, String ip, int port, int latencyIn, int latencyOut);
 
     public static native int getRedirectLatency(long redirect, String ip, int port);
 

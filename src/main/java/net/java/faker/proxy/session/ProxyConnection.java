@@ -527,22 +527,22 @@ public class ProxyConnection extends NetClient {
         this.latencyChange = latencyChange;
     }
 
-    public void setLatency(int latency) {
+    public void setLatency(int totalLatency) {
         if (this.latencyMode != LatencyMode.DISABLED) {
-            if (this.latency != latency) {
-                this.latency = latency;
+            if (this.latency != totalLatency) {
+                this.latency = totalLatency;
                 InetSocketAddress remote = (InetSocketAddress) this.c2p.remoteAddress();
                 String ip = remote.getAddress().getHostAddress();
                 int port = remote.getPort();
-                if (!WinRedirect.setRedirectLatency(Proxy.forward_redirect, ip, port, this.latency)) {
-                    WinRedirect.setRedirectLatency(Proxy.redirect, ip, port, this.latency);
+                int halfLatency = totalLatency / 2;
+                if (!WinRedirect.setRedirectLatency(Proxy.forward_redirect, ip, port, halfLatency, halfLatency)) {
+                    WinRedirect.setRedirectLatency(Proxy.redirect, ip, port, halfLatency, halfLatency);
                 }
                 if (latencyChange != null) {
                     latencyChange.accept(this);
                 }
             }
         }
-
     }
 
     public void setConnectTime(int connectTime) {
