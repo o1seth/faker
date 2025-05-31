@@ -594,16 +594,18 @@ public class Proxy {
         if (!WinRedirect.isSupported()) {
             return;
         }
-        int forwardLatency = 0;
+        int forwardLatencyIn = 0;
+        int forwardLatencyOut = 0;
         if (config.autoLatency.get()) {
-            forwardLatency = 40;
+            forwardLatencyIn = 40;
+            forwardLatencyOut = 40;
         }
-        forward_redirect = WinRedirect.redirectStart(getTargetPort(), proxyAddress.getPort(), null, null, WinRedirect.Layer.NETWORK_FORWARD, forwardLatency);
+        forward_redirect = WinRedirect.redirectStart(getTargetPort(), proxyAddress.getPort(), null, null, WinRedirect.Layer.NETWORK_FORWARD, forwardLatencyIn, forwardLatencyOut);
         if (forward_redirect == 0) {
             currentProxyServer.getChannel().close();
             throw new RuntimeException(WinRedirect.getError());
         }
-        redirect = WinRedirect.redirectStart(getTargetPort(), proxyAddress.getPort(), null, null, WinRedirect.Layer.NETWORK, 0);
+        redirect = WinRedirect.redirectStart(getTargetPort(), proxyAddress.getPort(), null, null, WinRedirect.Layer.NETWORK, 0, 0);
         if (redirect == 0) {
             currentProxyServer.getChannel().close();
             throw new RuntimeException(WinRedirect.getError());

@@ -359,46 +359,61 @@ public class GeneralTab extends UITab {
 
         int gridY = 0;
         JLabel description = new JLabel("Latency for " + proxyConnection.getRealSrcAddress());
-        //I18n.link(description, "tab.dhcp.description.label", (t, s) -> t.setText("<html><p>" + I18n.get(s) + "</p></html>"));
         GBC.create(panel).grid(0, gridY++).insets(BODY_BLOCK_PADDING, BORDER_PADDING, 0, BODY_BLOCK_PADDING).fill(GBC.BOTH).weight(1, 1).add(description);
 
-        JLabel latencyStatus = new JLabel("Latency: 0");
-        JSlider slider = new JSlider();
-        slider.setMinimum(0);
-        slider.setMaximum(250);
-        slider.addChangeListener(e -> latencyStatus.setText("Latency: " + slider.getValue()));
+        JLabel latencyInStatus = new JLabel("Inbound Latency: 0");
+        JLabel latencyOutStatus = new JLabel("Outbound Latency: 0");
+        JSlider sliderIn = new JSlider();
+        JSlider sliderOut = new JSlider();
+        sliderIn.setMinimum(0);
+        sliderIn.setMaximum(250);
+        sliderOut.setMinimum(0);
+        sliderOut.setMaximum(250);
+        sliderIn.addChangeListener(e -> latencyInStatus.setText("Inbound Latency: " + sliderIn.getValue()));
+        sliderOut.addChangeListener(e -> latencyOutStatus.setText("Outbound Latency: " + sliderOut.getValue()));
 
         JComboBox<String> mode = new JComboBox<>(new String[]{"Disabled", "Auto", "Manual"});
         proxyConnection.setLatencyChangeListener(p -> {
             if (mode.getSelectedIndex() == 1) {
-                SwingUtilities.invokeLater(() -> slider.setValue(p.getLatency()));
+                SwingUtilities.invokeLater(() -> {
+                    sliderIn.setValue(p.getLatencyIn());
+                    sliderOut.setValue(p.getLatencyOut());
+                });
             }
         });
 
         mode.addActionListener(e -> {
-            latencyStatus.setEnabled(mode.getSelectedIndex() != 0);
-            slider.setEnabled(mode.getSelectedIndex() == 2);
+            boolean enabled = mode.getSelectedIndex() != 0;
+            latencyInStatus.setEnabled(enabled);
+            latencyOutStatus.setEnabled(enabled);
+            sliderIn.setEnabled(mode.getSelectedIndex() == 2);
+            sliderOut.setEnabled(mode.getSelectedIndex() == 2);
             if (mode.getSelectedIndex() == 1) {
-                slider.setValue(proxyConnection.getLatency());
+                sliderIn.setValue(proxyConnection.getLatencyIn());
+                sliderOut.setValue(proxyConnection.getLatencyOut());
             }
             if (mode.getSelectedIndex() == 0) {
-                slider.setValue(0);
+                sliderIn.setValue(0);
+                sliderOut.setValue(0);
             }
         });
 
         mode.setSelectedIndex(proxyConnection.getLatencyMode().ordinal());
-        slider.setValue(proxyConnection.getLatency());
+        sliderIn.setValue(proxyConnection.getLatencyIn());
+        sliderOut.setValue(proxyConnection.getLatencyOut());
         GBC.create(panel).grid(0, gridY++).insets(BODY_BLOCK_PADDING, BORDER_PADDING, 0, BODY_BLOCK_PADDING).fill(GBC.BOTH).weight(1, 1).add(mode);
-        GBC.create(panel).grid(0, gridY++).insets(BODY_BLOCK_PADDING, BORDER_PADDING, 0, BODY_BLOCK_PADDING).fill(GBC.BOTH).weight(1, 1).add(latencyStatus);
-        GBC.create(panel).grid(0, gridY++).insets(BODY_BLOCK_PADDING, BORDER_PADDING, 0, BODY_BLOCK_PADDING).fill(GBC.BOTH).weight(1, 1).add(slider);
+        GBC.create(panel).grid(0, gridY++).insets(BODY_BLOCK_PADDING, BORDER_PADDING, 0, BODY_BLOCK_PADDING).fill(GBC.BOTH).weight(1, 1).add(latencyInStatus);
+        GBC.create(panel).grid(0, gridY++).insets(BODY_BLOCK_PADDING, BORDER_PADDING, 0, BODY_BLOCK_PADDING).fill(GBC.BOTH).weight(1, 1).add(sliderIn);
+        GBC.create(panel).grid(0, gridY++).insets(BODY_BLOCK_PADDING, BORDER_PADDING, 0, BODY_BLOCK_PADDING).fill(GBC.BOTH).weight(1, 1).add(latencyOutStatus);
+        GBC.create(panel).grid(0, gridY++).insets(BODY_BLOCK_PADDING, BORDER_PADDING, 0, BODY_BLOCK_PADDING).fill(GBC.BOTH).weight(1, 1).add(sliderOut);
 
         body.add(panel, BorderLayout.NORTH);
 
         if (Window.showDialog(body) == JOptionPane.OK_OPTION) {
             proxyConnection.setLatencyMode(LatencyMode.values()[mode.getSelectedIndex()]);
-            proxyConnection.setLatency(slider.getValue());
+            proxyConnection.setLatency(sliderIn.getValue(), sliderOut.getValue());
             if (Proxy.getConfig().autoLatency.get() && mode.getSelectedIndex() == 2) {
-                WinRedirect.redirectSetDefaultLatency(Proxy.forward_redirect, slider.getValue());
+                WinRedirect.redirectSetDefaultLatency(Proxy.forward_redirect, sliderIn.getValue(), sliderOut.getValue());
             }
         }
         proxyConnection.setLatencyChangeListener(null);

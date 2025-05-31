@@ -333,7 +333,8 @@ public class DualConnection {
             int latencySum = 0;
             int latencyCount = 0;
             minLatency = Integer.MAX_VALUE;
-            int newLatency = 0;
+            int newLatencyIn = 0;
+            int newLatencyOut = 0;
             while (!isInterrupted()) {
                 if (!channel.isOpen()) {
                     break;
@@ -347,24 +348,27 @@ public class DualConnection {
                         minLatency = latency;
                     }
                 }
-                if (newLatency != (minLatency + avgLatency) / 2) {
-                    newLatency = (minLatency + avgLatency) / 2;
+                int targetLatency = (minLatency + avgLatency) / 2;
+                // For now, we'll use the same latency for both directions
+                // This could be made asymmetric in the future based on network conditions
+                if (newLatencyIn != targetLatency || newLatencyOut != targetLatency) {
+                    newLatencyIn = targetLatency;
+                    newLatencyOut = targetLatency;
                     if (mainConnection.getLatencyMode() == LatencyMode.AUTO) {
-                        mainConnection.setLatency(newLatency);
+                        mainConnection.setLatency(newLatencyIn, newLatencyOut);
                     }
                     if (sideConnection != null && sideConnection.getLatencyMode() == LatencyMode.AUTO) {
-                        sideConnection.setLatency(newLatency);
+                        sideConnection.setLatency(newLatencyIn, newLatencyOut);
                     }
                     if (Proxy.getConfig().autoLatency.get()) {
-                        WinRedirect.redirectSetDefaultLatency(Proxy.forward_redirect, newLatency);
+                        WinRedirect.redirectSetDefaultLatency(Proxy.forward_redirect, newLatencyIn, newLatencyOut);
                     }
                 }
                 try {
                     Thread.sleep(750);
                 } catch (Exception e) {
-
+                    // Ignore
                 }
-
             }
         }
     }
