@@ -425,7 +425,11 @@ public class GeneralTab extends UITab {
 
     private void updateStateLabel() {
         I18n.link(this.stateLabel, "tab.general.state.running", (t, s) -> {
-            t.setText(I18n.get(s, Proxy.proxyAddress.getHostName() + ":" + Proxy.proxyAddress.getPort()));
+            String suffix = "";
+            if (Proxy.getTargetAddress() != null) {
+                suffix = ".  Server:  " + Proxy.getTargetAddress();
+            }
+            t.setText(I18n.get(s, Proxy.proxyAddress.getHostName() + ":" + Proxy.proxyAddress.getPort()) + suffix);
         });
         this.stateLabel.setForeground(Color.GREEN);
         this.stateLabel.setVisible(true);

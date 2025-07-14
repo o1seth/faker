@@ -28,6 +28,7 @@ import io.netty.util.AttributeKey;
 import net.java.faker.Proxy;
 import net.java.faker.WinRedirect;
 import net.java.faker.auth.Account;
+import net.java.faker.proxy.PacketRegistry;
 import net.java.faker.proxy.event.ConnectEvent;
 import net.java.faker.proxy.event.DisconnectEvent;
 import net.java.faker.proxy.event.LoginEvent;
@@ -54,6 +55,7 @@ import java.util.function.Supplier;
 public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
     public static final AttributeKey<Client2ProxyHandler> CLIENT_2_PROXY_ATTRIBUTE_KEY = AttributeKey.valueOf("proxy_connection");
     private ProxyConnection proxyConnection;
+    public static final Object transferLocker = new Object();
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
@@ -72,6 +74,14 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
             InetSocketAddress[] addresses = new InetSocketAddress[2];
             if (!WinRedirect.redirectGetRealAddresses(Proxy.forward_redirect, remote.getAddress().getHostAddress(), remote.getPort(), addresses)) {
                 WinRedirect.redirectGetRealAddresses(Proxy.redirect, remote.getAddress().getHostAddress(), remote.getPort(), addresses);
+            }
+            if (addresses[0] == null || addresses[1] == null) {
+                if (Proxy.transfer_redirect != 0) {
+                    if (!WinRedirect.redirectGetRealAddresses(Proxy.transfer_forward_redirect, remote.getAddress().getHostAddress(), remote.getPort(), addresses)) {
+                        WinRedirect.redirectGetRealAddresses(Proxy.transfer_redirect, remote.getAddress().getHostAddress(), remote.getPort(), addresses);
+                    }
+                    System.out.println("TRANSFER FOUND " + addresses[0] + " " + addresses[1]);
+                }
             }
             realSrc = addresses[0];
             realDst = addresses[1];
@@ -119,14 +129,22 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
             WinRedirect.redirectAddSkipPort(Proxy.redirect, port);
             Logger.info("Skip port added " + port);
         }
-
+        if (Proxy.transfer_redirect != 0) {
+            WinRedirect.redirectAddSkipPort(Proxy.transfer_redirect, port);
+            Logger.info("Skip port added (transfer) " + port);
+        }
     };
+
     static ChannelFutureListener removeSkipPort = f -> {
+        InetSocketAddress localAddress = (InetSocketAddress) f.channel().localAddress();
+        int port = localAddress.getPort();
         if (Proxy.redirect != 0) {
-            InetSocketAddress localAddress = (InetSocketAddress) f.channel().localAddress();
-            int port = localAddress.getPort();
             WinRedirect.redirectRemoveSkipPort(Proxy.redirect, port);
             Logger.info("Skip port removed " + port);
+        }
+        if (Proxy.transfer_redirect != 0) {
+            WinRedirect.redirectRemoveSkipPort(Proxy.transfer_redirect, port);
+            Logger.info("Skip port removed (transfer) " + port);
         }
     };
 
@@ -242,6 +260,15 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
         if (this.proxyConnection.isForwardMode()) {
             throw new IllegalStateException("Unexpected packet in forward mode " + PacketUtils.toString(packet));
         }
+
+//        if (packet instanceof UnknownPacket p) {
+//            PacketRegistry reg = (PacketRegistry) ctx.channel().attr(MCPipeline.PACKET_REGISTRY_ATTRIBUTE_KEY).get();
+//            final MCPackets packetType = MCPackets.getPacket(reg.getConnectionState(), PacketDirection.SERVERBOUND, reg.getProtocolVersion(), p.packetId);
+//            Logger.raw("IN  " + "Unknown " + p.packetId + " " + packetType);
+//        } else {
+//            Logger.raw("OUT  " + PacketUtils.toString(packet));
+//        }
+
         if (!(packet instanceof UnknownPacket)) {
             if (!proxyConnection.preReceivePacket(packet)) {
                 return;
@@ -273,12 +300,27 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
     }
 
     private void handleHandshake(final C2SHandshakingClientIntentionPacket packet) {
-
-        if (packet.intendedState == IntendedState.LOGIN) {
-            if (Proxy.dualConnection == null) {
-                Proxy.dualConnection = new DualConnection(proxyConnection);
+        if (packet.intendedState == IntendedState.LOGIN || packet.intendedState == IntendedState.TRANSFER) {
+            final DualConnection dualConnection;
+            synchronized (Proxy.dualConnectionLocker) {
+                dualConnection = Proxy.dualConnection;
+                if (Proxy.dualConnection == null) {
+                    Proxy.dualConnection = new DualConnection(proxyConnection);
+                }
+            }
+            if (dualConnection == null) {
                 this.proxyConnection.setController(true);
             } else {
+                if (packet.intendedState == IntendedState.TRANSFER) {
+                    synchronized (transferLocker) {
+                        Logger.raw("Transfer wait second connection....");
+                        try {
+                            transferLocker.wait(1500);
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                }
                 this.proxyConnection.setController(false);
                 this.proxyConnection.setChannel(Proxy.dualConnection.getMainConnection());
                 Proxy.dualConnection.setSideConnection(this.proxyConnection);
@@ -357,9 +399,6 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
         this.proxyConnection.getPacketHandlers().add(new CloseContainerHandler(this.proxyConnection));
         this.proxyConnection.getPacketHandlers().add(new PlayerCommandHandler(this.proxyConnection));
         this.proxyConnection.getPacketHandlers().add(new SwingHandler(this.proxyConnection));
-        if (version >= MCVersion.v1_20_5) {
-            this.proxyConnection.getPacketHandlers().add(new TransferPacketHandler(this.proxyConnection));
-        }
         if (version >= (MCVersion.v1_20_2)) {
             this.proxyConnection.getPacketHandlers().add(new ConfigurationPacketHandler(this.proxyConnection));
         }
@@ -395,8 +434,12 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
 
         Proxy.connectedAddresses.add(connectAddress);
         final long startTime = System.currentTimeMillis();
+
         this.proxyConnection.connectToServer(connectAddress, addSkipPort).addListeners(removeSkipPort, (ThrowingChannelFutureListener) f -> {
             if (f.isSuccess()) {
+                synchronized (transferLocker) {
+                    transferLocker.notifyAll();
+                }
                 f.channel().eventLoop().submit(() -> { // Reschedule so the packets get sent after the channel is fully initialized and active
                     final long endTime = System.currentTimeMillis();
                     int connectTime = (int) (endTime - startTime);

@@ -26,6 +26,20 @@ import net.raphimc.netminecraft.packet.registry.DefaultPacketRegistry;
 public class PacketRegistry extends DefaultPacketRegistry {
     public PacketRegistry(boolean isClientside, int protocolVersion) {
         super(isClientside, protocolVersion);
+
+        if (protocolVersion >= MCVersion.v1_20_5) {
+            registerPacket(MCPackets.S2C_STORE_COOKIE, S2CStoreCookie::new);
+            registerPacket(MCPackets.S2C_COOKIE_REQUEST, S2CCookieRequest::new);
+            registerPacket(MCPackets.C2S_COOKIE_RESPONSE, C2SCookieResponse::new);
+
+            registerPacket(MCPackets.S2C_LOGIN_COOKIE_REQUEST, S2CCookieRequest.Login::new);
+            registerPacket(MCPackets.C2S_LOGIN_COOKIE_RESPONSE, C2SCookieResponse.Login::new);
+
+            registerPacket(MCPackets.S2C_CONFIG_STORE_COOKIE, S2CStoreCookie.Config::new);
+            registerPacket(MCPackets.S2C_CONFIG_COOKIE_REQUEST, S2CCookieRequest.Config::new);
+            registerPacket(MCPackets.C2S_CONFIG_COOKIE_RESPONSE, C2SCookieResponse.Config::new);
+        }
+
         registerPacket(MCPackets.C2S_MOVE_PLAYER_STATUS_ONLY, C2SMovePlayer.Status::new);
         registerPacket(MCPackets.C2S_MOVE_PLAYER_ROT, C2SMovePlayer.Rot::new);
         registerPacket(MCPackets.C2S_MOVE_PLAYER_POS, C2SMovePlayer.Pos::new);

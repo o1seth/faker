@@ -125,7 +125,14 @@ public class Config {
         return value;
     }
 
+    private String serverAddressHost = "";
+
+    public void refreshServerAddress() {
+        this.setServerAddress(serverAddressHost);
+    }
+
     public void setServerAddress(String host) {
+        this.serverAddressHost = host;
         this.serverAddress.set(host.isEmpty() ? null : host);
         setTargetHandshakeAddress(host);
     }

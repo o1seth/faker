@@ -26,28 +26,29 @@ import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import net.java.faker.Proxy;
+import net.java.faker.proxy.PacketRegistry;
 import net.java.faker.proxy.auth.ExternalInterface;
 import net.java.faker.proxy.packethandler.PacketHandler;
 import net.java.faker.proxy.session.DualConnection;
 import net.java.faker.proxy.session.ProxyConnection;
 import net.java.faker.proxy.util.ExceptionUtil;
 import net.java.faker.proxy.util.PacketUtils;
+import net.java.faker.proxy.util.TransferDataHolder;
 import net.java.faker.proxy.util.chat.ChatSession1_19_3;
 import net.java.faker.util.logging.Logger;
-import net.raphimc.netminecraft.constants.ConnectionState;
-import net.raphimc.netminecraft.constants.MCPackets;
-import net.raphimc.netminecraft.constants.MCPipeline;
-import net.raphimc.netminecraft.constants.MCVersion;
+import net.raphimc.netminecraft.constants.*;
 import net.raphimc.netminecraft.netty.crypto.AESEncryption;
 import net.raphimc.netminecraft.netty.crypto.CryptUtil;
 import net.raphimc.netminecraft.packet.Packet;
 import net.raphimc.netminecraft.packet.PacketTypes;
 import net.raphimc.netminecraft.packet.UnknownPacket;
 import net.raphimc.netminecraft.packet.impl.common.S2CDisconnectPacket;
+import net.raphimc.netminecraft.packet.impl.common.S2CTransferPacket;
 import net.raphimc.netminecraft.packet.impl.configuration.S2CConfigFinishConfigurationPacket;
 import net.raphimc.netminecraft.packet.impl.login.*;
 import net.raphimc.netminecraft.packet.impl.play.S2CPlaySetCompressionPacket;
 import net.raphimc.netminecraft.packet.impl.play.S2CPlayStartConfigurationPacket;
+import net.raphimc.netminecraft.util.MinecraftServerAddress;
 
 import javax.crypto.SecretKey;
 import java.math.BigInteger;
@@ -108,6 +109,7 @@ public class Proxy2ServerHandler extends SimpleChannelInboundHandler<Packet> {
         if (this.proxyConnection.isForwardMode()) {
             throw new IllegalStateException("Unexpected packet in forward mode " + PacketUtils.toString(packet));
         }
+
         ProxyConnection sideConnection = null;
         ProxyConnection mainConnection = this.proxyConnection;
         DualConnection dualConnection = mainConnection.dualConnection;
@@ -123,8 +125,13 @@ public class Proxy2ServerHandler extends SimpleChannelInboundHandler<Packet> {
             }
         }
 
-//        if (!(packet instanceof UnknownPacket) && !(packet instanceof S2CSetEntityMotion) && !(packet instanceof S2CEntityPositionSync) && !(packet instanceof S2CDestroyEntities) && !(packet instanceof S2CPing)) {
-//            Logger.raw("IN  " + packet);
+
+//        if (packet instanceof UnknownPacket p) {
+//            PacketRegistry reg = (PacketRegistry) ctx.channel().attr(MCPipeline.PACKET_REGISTRY_ATTRIBUTE_KEY).get();
+//            final MCPackets packetType = MCPackets.getPacket(reg.getConnectionState(), PacketDirection.CLIENTBOUND, reg.getProtocolVersion(), p.packetId);
+//            Logger.raw("IN  " + "Unknown " + p.packetId + " " + packetType);
+//        } else {
+//            Logger.raw("IN  " + PacketUtils.toString(packet));
 //        }
 
         if (!handleCompression(packet, ctx.channel())) {
@@ -151,6 +158,10 @@ public class Proxy2ServerHandler extends SimpleChannelInboundHandler<Packet> {
         }
         if (packet instanceof UnknownPacket p && p.packetId == joinGamePacketId) {
             handleJoinGame(p, listeners);
+        }
+        if (packet instanceof S2CTransferPacket p) {
+            handleTransfer(p);
+            listeners.add(ChannelFutureListener.CLOSE);
         }
 
         for (PacketHandler packetHandler : mainConnection.getPacketHandlers()) {
@@ -281,6 +292,21 @@ public class Proxy2ServerHandler extends SimpleChannelInboundHandler<Packet> {
             return false;
         }
         return true;
+    }
+
+    public void handleTransfer(S2CTransferPacket transferPacket) {
+        final InetSocketAddress newAddress = MinecraftServerAddress.ofResolved(transferPacket.host, transferPacket.port);
+        TransferDataHolder.addTempRedirect(this.proxyConnection.getC2P(), newAddress);
+
+        Logger.u_warn("transfer", this.proxyConnection, "Transfer to " + newAddress.getHostName() + ":" + newAddress.getPort() + "   (" + transferPacket.host + ":" + transferPacket.port + ")");
+        if (Proxy.transferAddress != null) {
+            if (Proxy.transfer_redirect != 0) {
+                Proxy.stopTransferRedirectDelay(1000);
+            }
+        }
+        Proxy.transferAddress = newAddress;
+        Proxy.startTransferRedirect();
+        Proxy.resumeRedirect();
     }
 
     public void handleJoinGame(UnknownPacket packet, List<ChannelFutureListener> listeners) {

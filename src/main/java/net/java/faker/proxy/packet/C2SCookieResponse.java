@@ -24,14 +24,18 @@ import net.raphimc.netminecraft.packet.PacketTypes;
 
 import java.nio.charset.StandardCharsets;
 
-public class C2SeCookieResponse implements Packet {
+public class C2SCookieResponse implements Packet {
     public String key;
     public byte[] payload;
 
     @Override
     public void read(ByteBuf byteBuf, int protocolVersion) {
         this.key = PacketTypes.readString(byteBuf, 32767);
-        this.payload = PacketTypes.readByteArray(byteBuf, 5120);
+        boolean notNull = byteBuf.readBoolean();
+        if (notNull) {
+            this.payload = PacketTypes.readByteArray(byteBuf, 5120);
+        }
+
     }
 
     @Override
@@ -49,6 +53,14 @@ public class C2SeCookieResponse implements Packet {
 
     @Override
     public String toString() {
-        return "C2SeCookieResponse " + key + " : " + new String(payload, StandardCharsets.UTF_8);
+        return "C2SCookieResponse " + key + " : " + (payload == null ? "null" : new String(payload, StandardCharsets.UTF_8));
+    }
+
+    public static class Login extends C2SCookieResponse {
+
+    }
+
+    public static class Config extends C2SCookieResponse {
+
     }
 }

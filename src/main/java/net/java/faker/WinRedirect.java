@@ -95,11 +95,23 @@ public class WinRedirect {
 
     public static native int redirectGetDefaultLatency(long redirect);
 
-    public static long redirectStart(int targetPort, int localPort, Inet4Address[] srcAddresses, Inet4Address[] dstAddresses, Layer layer, int latency) {
+    public static long redirectStart(int[] targetPorts, int localPort, Inet4Address[] srcAddresses, Inet4Address[] dstAddresses, Layer layer, int latency) {
         StringBuilder filter = new StringBuilder();
         filter.append("tcp");
-        filter.append(" and (tcp.DstPort == ");
-        filter.append(targetPort);
+        filter.append(" and (");
+        if (targetPorts.length == 1) {
+            filter.append("tcp.DstPort == ");
+            filter.append(targetPorts[0]);
+        } else {
+            for (int i = 0; i < targetPorts.length; i++) {
+                filter.append("tcp.DstPort == ");
+                filter.append(targetPorts[i]);
+                if (i < targetPorts.length - 1) {
+                    filter.append(" or ");
+                }
+            }
+        }
+
         filter.append(")");
         filter.append(" and (ip.DstAddr < 127.0.0.1 or ip.DstAddr > 127.255.255.254)");//we don't want to redirect localhost connections
         if (srcAddresses != null) {
@@ -133,6 +145,10 @@ public class WinRedirect {
         }
         Logger.raw("Redirect filter:\n" + filter);
         return redirectStart(localPort, filter.toString(), layer.ordinal(), latency);
+    }
+
+    public static long redirectStart(int targetPort, int localPort, Inet4Address[] srcAddresses, Inet4Address[] dstAddresses, Layer layer, int latency) {
+        return redirectStart(new int[]{targetPort}, localPort, srcAddresses, dstAddresses, layer, latency);
     }
 
     protected static native long redirectStart(int redirect_port, String filter, int layer, int latency);

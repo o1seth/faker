@@ -45,7 +45,7 @@ import net.raphimc.netminecraft.packet.impl.login.C2SLoginHelloPacket;
 import net.raphimc.netminecraft.packet.impl.login.S2CLoginDisconnectPacket;
 import net.raphimc.netminecraft.packet.impl.play.S2CPlayDisconnectPacket;
 import net.raphimc.netminecraft.packet.impl.status.S2CStatusResponsePacket;
-import net.raphimc.netminecraft.util.ChannelType;
+import net.raphimc.netminecraft.util.TransportType;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
@@ -154,7 +154,7 @@ public class ProxyConnection extends NetClient {
     }
 
     @Override
-    public void initialize(final ChannelType channelType, final Bootstrap bootstrap) {
+    public void initialize(final TransportType channelType, final Bootstrap bootstrap) {
         bootstrap.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, Proxy.connectTimeout);
         bootstrap.attr(PROXY_CONNECTION_ATTRIBUTE_KEY, this);
         super.initialize(channelType, bootstrap);
@@ -163,7 +163,7 @@ public class ProxyConnection extends NetClient {
     public ChannelFuture connectToServer(final SocketAddress serverAddress, IntConsumer onBind) {
         this.serverAddress = serverAddress;
         if (this.channelFuture == null) {
-            this.initialize(ChannelType.get(serverAddress), new Bootstrap());
+            this.initialize(TransportType.getBest(serverAddress), new Bootstrap());
         }
 
         this.getChannel().bind(new InetSocketAddress(0)).syncUninterruptibly();

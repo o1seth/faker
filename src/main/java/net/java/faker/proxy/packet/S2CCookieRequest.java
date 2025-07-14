@@ -22,19 +22,29 @@ import io.netty.buffer.ByteBuf;
 import net.raphimc.netminecraft.packet.Packet;
 import net.raphimc.netminecraft.packet.PacketTypes;
 
-public class S2CStoreCookie implements Packet {
+public class S2CCookieRequest implements Packet {
     public String key;
-    public byte[] payload;
 
     @Override
     public void read(ByteBuf byteBuf, int protocolVersion) {
         this.key = PacketTypes.readString(byteBuf, 32767);
-        this.payload = PacketTypes.readByteArray(byteBuf, 5120);
     }
 
     @Override
     public void write(ByteBuf byteBuf, int protocolVersion) {
         PacketTypes.writeString(byteBuf, this.key);
-        PacketTypes.writeByteArray(byteBuf, this.payload);
+    }
+
+    @Override
+    public String toString() {
+        return "S2CCookieRequest " + key;
+    }
+
+    public static class Login extends S2CCookieRequest {
+
+    }
+
+    public static class Config extends S2CCookieRequest {
+
     }
 }

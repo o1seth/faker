@@ -22,24 +22,30 @@ import io.netty.buffer.ByteBuf;
 import net.raphimc.netminecraft.packet.Packet;
 import net.raphimc.netminecraft.packet.PacketTypes;
 
-public class S2CDestroyEntities implements Packet {
-    public int[] entities;
+import java.nio.charset.StandardCharsets;
+
+public class S2CStoreCookie implements Packet {
+    public String key;
+    public byte[] payload;
 
     @Override
     public void read(ByteBuf byteBuf, int protocolVersion) {
-
-        int len = PacketTypes.readVarInt(byteBuf);
-        this.entities = new int[len];
-        for (int i = 0; i < len; i++) {
-            this.entities[i] = PacketTypes.readVarInt(byteBuf);
-        }
+        this.key = PacketTypes.readString(byteBuf, 32767);
+        this.payload = PacketTypes.readByteArray(byteBuf, 5120);
     }
 
     @Override
     public void write(ByteBuf byteBuf, int protocolVersion) {
-        PacketTypes.writeVarInt(byteBuf, this.entities.length);
-        for (int i = 0; i < entities.length; i++) {
-            PacketTypes.writeVarInt(byteBuf, entities[i]);
-        }
+        PacketTypes.writeString(byteBuf, this.key);
+        PacketTypes.writeByteArray(byteBuf, this.payload);
+    }
+
+    @Override
+    public String toString() {
+        return "S2CStoreCookie " + key + " : " + new String(payload, StandardCharsets.UTF_8);
+    }
+
+    public static class Config extends S2CStoreCookie {
+
     }
 }

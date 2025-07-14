@@ -35,8 +35,6 @@ import net.java.faker.proxy.session.ProxyConnection;
 import net.java.faker.proxy.util.chat.Ints;
 import net.java.faker.save.AccountManager;
 import net.java.faker.save.Config;
-import net.java.faker.ui.GBC;
-import net.java.faker.ui.I18n;
 import net.java.faker.ui.Window;
 import net.java.faker.ui.tab.AdvancedTab;
 import net.java.faker.util.HttpHostSpoofer;
@@ -46,30 +44,28 @@ import net.java.faker.util.network.NetworkInterface;
 import net.java.faker.util.network.NetworkUtil;
 import net.raphimc.netminecraft.constants.MCPipeline;
 import net.raphimc.netminecraft.netty.connection.NetServer;
+import net.raphimc.netminecraft.util.MinecraftServerAddress;
 
-import javax.swing.*;
-import javax.swing.event.ChangeEvent;
-import javax.swing.event.ChangeListener;
-import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
+import javax.naming.directory.Attribute;
+import javax.naming.directory.Attributes;
+import javax.naming.directory.DirContext;
+import javax.naming.directory.InitialDirContext;
 import java.io.File;
 import java.net.*;
 import java.util.ArrayList;
+import java.util.Hashtable;
 import java.util.List;
 import java.util.function.Consumer;
 
-import static net.java.faker.ui.Window.BODY_BLOCK_PADDING;
-import static net.java.faker.ui.Window.BORDER_PADDING;
-
 public class Proxy {
-    public static final String VERSION = "1.4";
+    public static final String VERSION = "1.5";
     public static InetSocketAddress proxyAddress = new InetSocketAddress("127.0.0.1", 25565);
+    public static InetSocketAddress transferAddress;
     private static URI backendProxy;
     public static final int compressionThreshold = 256;
     public static final int connectTimeout = 8000;
     public static DualConnection dualConnection;
-
+    public static final Object dualConnectionLocker = new Object();
     private static Config config;
     private static AccountManager accountManager;
     private static Account account;
@@ -86,6 +82,9 @@ public class Proxy {
     private static final List<Consumer<Event>> events = new ArrayList<>();
     public static long forward_redirect;
     public static long redirect;
+    public static long transfer_forward_redirect;
+    public static long transfer_redirect;
+
     private static long mdns;
     private static long routerBlockTraffic;
     private static long routerPortForward;
@@ -117,6 +116,14 @@ public class Proxy {
             }
 
             filter.append(")");
+        }
+    }
+
+    private static int portOrDefault(final String port, final int defaultPort) {
+        try {
+            return Integer.parseInt(port.trim());
+        } catch (NumberFormatException e) {
+            return defaultPort;
         }
     }
 
@@ -185,8 +192,12 @@ public class Proxy {
             throw new IllegalStateException("Proxy is already running");
         }
         try {
-
+            config.refreshServerAddress();
             Logger.info("Starting proxy server");
+            if (getTargetAddress() != null) {
+                Logger.info("Server address: " + getTargetHandshakeAddress());
+                Logger.info("Server connect address: " + getTargetAddress());
+            }
             event(new ProxyStateEvent(ProxyStateEvent.State.STARTING));
             currentProxyServer = new NetServer(new Client2ProxyChannelInitializer(Client2ProxyHandler::new));
 
@@ -241,6 +252,7 @@ public class Proxy {
             Logger.info("Stopping proxy server");
             event(new ProxyStateEvent(ProxyStateEvent.State.STOPPING));
             stopRedirect();
+            transferAddress = null;
             if (Proxy.getConfig().tracerouteFix.get()) {
                 disableTtlFix();
             }
@@ -279,12 +291,32 @@ public class Proxy {
         return config.getTargetAddress();
     }
 
-    private static int getTargetPort() {
+    private static int[] getTargetPorts() {
         InetSocketAddress targetAddress = getTargetAddress();
         if (targetAddress == null) {
-            return 25565;
+            return new int[]{25565};
         }
-        return targetAddress.getPort();
+        final String DNS_CONTEXT_FACTORY_CLASS = "com.sun.jndi.dns.DnsContextFactory";
+        try {
+            InetSocketAddress targetHandshake = getTargetHandshakeAddress();
+            MinecraftServerAddress unresolved = MinecraftServerAddress.ofUnresolved(targetHandshake.getHostName(), targetHandshake.getPort());
+            Class.forName(DNS_CONTEXT_FACTORY_CLASS);
+            final Hashtable<String, String> hashtable = new Hashtable<>();
+            hashtable.put("java.naming.factory.initial", DNS_CONTEXT_FACTORY_CLASS);
+            hashtable.put("java.naming.provider.url", "dns:");
+            hashtable.put("com.sun.jndi.dns.timeout.retries", "1");
+            final DirContext dirContext = new InitialDirContext(hashtable);
+            final Attributes attributes = dirContext.getAttributes("_minecraft._tcp." + unresolved.getHostString(), new String[]{"SRV"});
+            Attribute srv = attributes.get("srv");
+            int[] ports = new int[srv.size()];
+            for (int i = 0; i < ports.length; i++) {
+                final String[] srvRecord = srv.get(i).toString().split(" ", 4);
+                ports[i] = portOrDefault(srvRecord[2], 25565);
+            }
+            return ports;
+        } catch (Throwable ignored) {
+        }
+        return new int[]{targetAddress.getPort()};
     }
 
     public static void setBackendProxy(URI backendProxy) {
@@ -329,6 +361,14 @@ public class Proxy {
         if (redirect != 0) {
             WinRedirect.redirectPause(redirect);
         }
+
+        if (transfer_forward_redirect != 0) {
+            WinRedirect.redirectPause(transfer_forward_redirect);
+        }
+        if (transfer_redirect != 0) {
+            WinRedirect.redirectPause(transfer_redirect);
+        }
+
         event(new RedirectStateChangeEvent(RedirectStateChangeEvent.State.PAUSED));
     }
 
@@ -341,6 +381,12 @@ public class Proxy {
         }
         if (redirect != 0) {
             WinRedirect.redirectResume(redirect);
+        }
+        if (transfer_forward_redirect != 0) {
+            WinRedirect.redirectResume(transfer_forward_redirect);
+        }
+        if (transfer_redirect != 0) {
+            WinRedirect.redirectResume(transfer_redirect);
         }
         event(new RedirectStateChangeEvent(RedirectStateChangeEvent.State.RESUMED));
     }
@@ -388,6 +434,8 @@ public class Proxy {
             WinRedirect.redirectStop(redirect);
             redirect = 0;
         }
+
+        stopTransferRedirect();
     }
 
     private static void startRouterBlockTraffic(Inet4Address address) {
@@ -598,15 +646,77 @@ public class Proxy {
         if (config.autoLatency.get()) {
             forwardLatency = 40;
         }
-        forward_redirect = WinRedirect.redirectStart(getTargetPort(), proxyAddress.getPort(), null, null, WinRedirect.Layer.NETWORK_FORWARD, forwardLatency);
+
+        forward_redirect = WinRedirect.redirectStart(getTargetPorts(), proxyAddress.getPort(), null, null, WinRedirect.Layer.NETWORK_FORWARD, forwardLatency);
         if (forward_redirect == 0) {
             currentProxyServer.getChannel().close();
             throw new RuntimeException(WinRedirect.getError());
         }
-        redirect = WinRedirect.redirectStart(getTargetPort(), proxyAddress.getPort(), null, null, WinRedirect.Layer.NETWORK, 0);
+        redirect = WinRedirect.redirectStart(getTargetPorts(), proxyAddress.getPort(), null, null, WinRedirect.Layer.NETWORK, 0);
         if (redirect == 0) {
             currentProxyServer.getChannel().close();
             throw new RuntimeException(WinRedirect.getError());
+        }
+    }
+
+    public static void startTransferRedirect() {
+        if (!WinRedirect.isSupported()) {
+            return;
+        }
+        if (transferAddress == null) {
+            return;
+        }
+        for (int port : getTargetPorts()) {
+            if (transferAddress.getPort() == port) {
+                return;
+            }
+        }
+        int forwardLatency = 0;
+        if (config.autoLatency.get()) {
+            forwardLatency = 40;
+        }
+        transfer_forward_redirect = WinRedirect.redirectStart(transferAddress.getPort(), proxyAddress.getPort(), null, null, WinRedirect.Layer.NETWORK_FORWARD, forwardLatency);
+        if (transfer_forward_redirect == 0) {
+            currentProxyServer.getChannel().close();
+            throw new RuntimeException(WinRedirect.getError());
+        }
+        transfer_redirect = WinRedirect.redirectStart(transferAddress.getPort(), proxyAddress.getPort(), null, null, WinRedirect.Layer.NETWORK, 0);
+        if (transfer_redirect == 0) {
+            currentProxyServer.getChannel().close();
+            throw new RuntimeException(WinRedirect.getError());
+        }
+    }
+
+    public static void stopTransferRedirectDelay(int delay) {
+        final long t_forward_redirect = transfer_forward_redirect;
+        final long t_redirect = transfer_redirect;
+        new Thread(() -> {
+            try {
+                Thread.sleep(delay);
+                stopTransferRedirect(t_forward_redirect, t_redirect);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }).start();
+        transfer_forward_redirect = 0;
+        transfer_redirect = 0;
+    }
+
+    public static void stopTransferRedirect() {
+        if (!WinRedirect.isSupported()) {
+            return;
+        }
+        stopTransferRedirect(transfer_forward_redirect, transfer_redirect);
+        transfer_forward_redirect = 0;
+        transfer_redirect = 0;
+    }
+
+    private static void stopTransferRedirect(long transfer_forward_redirect, long transfer_redirect) {
+        if (transfer_forward_redirect != 0) {
+            WinRedirect.redirectStop(transfer_forward_redirect);
+        }
+        if (transfer_redirect != 0) {
+            WinRedirect.redirectStop(transfer_redirect);
         }
     }
 
