@@ -545,11 +545,11 @@ public class ProxyConnection extends NetClient {
 
     }
 
-    public void setConnectTime(int connectTime) {
+    public synchronized void setConnectTime(int connectTime) {
         this.connectTime = connectTime;
     }
 
-    public int getConnectTime() {
+    public synchronized int getConnectTime() {
         return connectTime;
     }
 

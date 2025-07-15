@@ -109,13 +109,13 @@ public class LoginPacketHandler extends PacketHandler {
 
             if (loginKeyPacket.encryptedNonce != null) {
                 if (!Arrays.equals(verifyToken, CryptUtil.decryptData(KEY_PAIR.getPrivate(), loginKeyPacket.encryptedNonce))) {
-                    Logger.u_err("auth", this.proxyConnection, "Invalid verify token");
+                    Logger.u_err("auth " + Integer.toUnsignedString(proxyConnection.hashCode(), 16), this.proxyConnection, "Invalid verify token");
                     this.proxyConnection.kickClient("Invalid verify token!");
                 }
             } else {
                 final C2SLoginHelloPacket loginHelloPacket = this.proxyConnection.getLoginHelloPacket();
                 if (loginHelloPacket.key == null || !CryptUtil.verifySignedNonce(loginHelloPacket.key, verifyToken, loginKeyPacket.salt, loginKeyPacket.signature)) {
-                    Logger.u_err("auth", this.proxyConnection, "Invalid verify token");
+                    Logger.u_err("auth " + Integer.toUnsignedString(proxyConnection.hashCode(), 16), this.proxyConnection, "Invalid verify token");
                     this.proxyConnection.kickClient("Invalid verify token!");
                 }
             }
@@ -127,12 +127,12 @@ public class LoginPacketHandler extends PacketHandler {
                 final String serverHash = new BigInteger(CryptUtil.computeServerIdHash("", KEY_PAIR.getPublic(), secretKey)).toString(16);
                 final GameProfile mojangProfile = AuthLibServices.SESSION_SERVICE.hasJoinedServer(this.proxyConnection.getGameProfile(), serverHash, null);
                 if (mojangProfile == null) {
-                    Logger.u_err("auth", this.proxyConnection, "Invalid session");
+                    Logger.u_err("auth " + Integer.toUnsignedString(proxyConnection.hashCode(), 16), this.proxyConnection, "Invalid session");
                     this.proxyConnection.kickClient("Invalid session! Please restart minecraft (and the launcher) and try again.");
                 } else {
                     this.proxyConnection.setGameProfile(mojangProfile);
                 }
-                Logger.u_info("auth", this.proxyConnection, "Authenticated as " + this.proxyConnection.getGameProfile().getId().toString());
+                Logger.u_info("auth " + Integer.toUnsignedString(proxyConnection.hashCode(), 16), this.proxyConnection, "Authenticated as " + this.proxyConnection.getGameProfile().getId().toString());
             } catch (Throwable e) {
                 throw new RuntimeException("Failed to make session request for user '" + userName + "'!", e);
             }
@@ -159,6 +159,4 @@ public class LoginPacketHandler extends PacketHandler {
 
         return true;
     }
-
-
 }

@@ -297,11 +297,10 @@ public class Proxy2ServerHandler extends SimpleChannelInboundHandler<Packet> {
     public void handleTransfer(S2CTransferPacket transferPacket) {
         final InetSocketAddress newAddress = MinecraftServerAddress.ofResolved(transferPacket.host, transferPacket.port);
         TransferDataHolder.addTempRedirect(this.proxyConnection.getC2P(), newAddress);
-
         Logger.u_warn("transfer", this.proxyConnection, "Transfer to " + newAddress.getHostName() + ":" + newAddress.getPort() + "   (" + transferPacket.host + ":" + transferPacket.port + ")");
         if (Proxy.transferAddress != null) {
             if (Proxy.transfer_redirect != 0) {
-                Proxy.stopTransferRedirectDelay(1000);
+                Proxy.stopTransferRedirectDelay(2000);
             }
         }
         Proxy.transferAddress = newAddress;

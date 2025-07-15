@@ -28,7 +28,6 @@ import io.netty.util.AttributeKey;
 import net.java.faker.Proxy;
 import net.java.faker.WinRedirect;
 import net.java.faker.auth.Account;
-import net.java.faker.proxy.PacketRegistry;
 import net.java.faker.proxy.event.ConnectEvent;
 import net.java.faker.proxy.event.DisconnectEvent;
 import net.java.faker.proxy.event.LoginEvent;
@@ -39,7 +38,9 @@ import net.java.faker.proxy.session.DualConnection;
 import net.java.faker.proxy.session.ProxyConnection;
 import net.java.faker.proxy.util.*;
 import net.java.faker.util.logging.Logger;
-import net.raphimc.netminecraft.constants.*;
+import net.raphimc.netminecraft.constants.ConnectionState;
+import net.raphimc.netminecraft.constants.IntendedState;
+import net.raphimc.netminecraft.constants.MCVersion;
 import net.raphimc.netminecraft.packet.Packet;
 import net.raphimc.netminecraft.packet.UnknownPacket;
 import net.raphimc.netminecraft.packet.impl.handshaking.C2SHandshakingClientIntentionPacket;
@@ -56,6 +57,7 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
     public static final AttributeKey<Client2ProxyHandler> CLIENT_2_PROXY_ATTRIBUTE_KEY = AttributeKey.valueOf("proxy_connection");
     private ProxyConnection proxyConnection;
     public static final Object transferLocker = new Object();
+    private static long lastConnectTime;
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
@@ -310,10 +312,12 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
             }
             if (dualConnection == null) {
                 this.proxyConnection.setController(true);
+                Logger.u_err("main " + Integer.toUnsignedString(proxyConnection.hashCode(), 16), this.proxyConnection, "handshake");
             } else {
-                if (packet.intendedState == IntendedState.TRANSFER) {
+                Logger.u_err("side " + Integer.toUnsignedString(proxyConnection.hashCode(), 16), this.proxyConnection, "handshake");
+                if (packet.intendedState == IntendedState.TRANSFER && dualConnection.getMainConnection().getConnectTime() < 0) {
                     synchronized (transferLocker) {
-                        Logger.raw("Transfer wait second connection....");
+                        Logger.raw("[SIDE] Transfer wait for main connection....");
                         try {
                             transferLocker.wait(1500);
                         } catch (InterruptedException e) {
@@ -410,7 +414,22 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
         if (!this.proxyConnection.isController() && this.proxyConnection.dualConnection != null) {
             Logger.u_info("connect", this.proxyConnection, "cancel connect to server");
             this.proxyConnection.setP2sConnectionState(intendedState.getConnectionState());
-            ChannelUtil.restoreAutoRead(this.proxyConnection.getC2P());
+            long curTime = System.currentTimeMillis();
+            if (curTime - lastConnectTime < 1000 && Proxy.getConfig().onlineMode.get()) {
+                new Thread(() -> {
+                    try {
+                        int wait = (int) (1000 - (curTime - lastConnectTime));
+                        Logger.u_info("connect", this.proxyConnection, "[SIDE] wait for " + wait + " ms");
+                        Thread.sleep(wait);
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                    ChannelUtil.restoreAutoRead(proxyConnection.getC2P());
+                }).start();
+            } else {
+                ChannelUtil.restoreAutoRead(proxyConnection.getC2P());
+            }
+
             Proxy.suspendRedirect();
             return;
         }
@@ -434,7 +453,7 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
 
         Proxy.connectedAddresses.add(connectAddress);
         final long startTime = System.currentTimeMillis();
-
+        lastConnectTime = System.currentTimeMillis();
         this.proxyConnection.connectToServer(connectAddress, addSkipPort).addListeners(removeSkipPort, (ThrowingChannelFutureListener) f -> {
             if (f.isSuccess()) {
                 synchronized (transferLocker) {
