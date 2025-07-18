@@ -279,7 +279,7 @@ public class ProxyConnection extends NetClient {
             if (syncPosState == ProxyConnection.SYNC_POS_RECEIVED) {
                 if (packet instanceof C2SMovePlayer p) {
                     syncPosState = 0;
-                    double y = ((C2SMovePlayer) packet).getY(dualConnection.playerY);
+                    double y = p.getY(dualConnection.playerY);
                     int intY = (int) y;
                     if (intY == y || y - intY == 0.5D || y - intY == 0.25D || y - intY == 0.75D) {
                         p.setOnGround(true);

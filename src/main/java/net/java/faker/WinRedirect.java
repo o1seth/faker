@@ -91,6 +91,12 @@ public class WinRedirect {
 
     public static native int getLatency(String fromIp, int fromPort, String toIp, int toPort);
 
+    public static native int getTtl(String fromIp, int fromPort, String toIp, int toPort);
+
+    public static native boolean setTtlOverride(long redirect, int ttl);
+
+    public static native int getTtlOverride(long redirect);
+
     public static native boolean redirectSetDefaultLatency(long redirect, int latency);
 
     public static native int redirectGetDefaultLatency(long redirect);

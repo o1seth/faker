@@ -42,7 +42,9 @@ public class MovePlayerPacketHandler extends PacketHandler {
         if (dualConnection == null) {
             return true;
         }
-
+        if (!dualConnection.isBothPlayState()) {
+            return true;
+        }
         if (packet instanceof C2SMoveVehicle moveVehicle) {
             if (!proxyConnection.isController()) {
                 return true;

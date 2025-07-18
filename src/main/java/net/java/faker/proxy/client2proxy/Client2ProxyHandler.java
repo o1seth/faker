@@ -285,15 +285,16 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
             }
             return;
         }
-
         final List<ChannelFutureListener> listeners = new ArrayList<>(1);
         listeners.add(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
-        for (PacketHandler packetHandler : this.proxyConnection.getPacketHandlers()) {
-            if (!packetHandler.handleC2P(packet, listeners)) {
-                return;
+        synchronized (Proxy.ioLocker) {
+            for (PacketHandler packetHandler : this.proxyConnection.getPacketHandlers()) {
+                if (!packetHandler.handleC2P(packet, listeners)) {
+                    return;
+                }
             }
+            this.proxyConnection.sendToServer(packet, listeners);
         }
-        this.proxyConnection.sendToServer(packet, listeners);
     }
 
     @Override

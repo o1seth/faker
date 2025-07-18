@@ -142,45 +142,46 @@ public class Proxy2ServerHandler extends SimpleChannelInboundHandler<Packet> {
             handleS2CLoginHello(p);
             return;
         }
+        synchronized (Proxy.ioLocker) {
+            final List<ChannelFutureListener> listeners = new ArrayList<>(2);
+            listeners.add(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
 
-        final List<ChannelFutureListener> listeners = new ArrayList<>(2);
-        listeners.add(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
-
-        if (packet instanceof S2CLoginGameProfilePacket) {
-            handleLoginGameProfile(dualConnection, (S2CLoginGameProfilePacket) packet, listeners);
-        }
-        if (packet instanceof S2CConfigFinishConfigurationPacket || packet instanceof S2CPlayStartConfigurationPacket) {
-            if (dualConnection != null) {
-                //disable read server->proxy packets, until two clients enter the PLAY state. Look ConfigurationPacketHandler.java
-                dualConnection.disableAutoRead();//for main connection
-                dualConnection.disableAutoRead();//for side connection
+            if (packet instanceof S2CLoginGameProfilePacket) {
+                handleLoginGameProfile(dualConnection, (S2CLoginGameProfilePacket) packet, listeners);
             }
-        }
-        if (packet instanceof UnknownPacket p && p.packetId == joinGamePacketId) {
-            handleJoinGame(p, listeners);
-        }
-        if (packet instanceof S2CTransferPacket p) {
-            handleTransfer(p);
-            listeners.add(ChannelFutureListener.CLOSE);
-        }
 
-        for (PacketHandler packetHandler : mainConnection.getPacketHandlers()) {
-            packetHandler.handleP2S(packet, listeners);
-        }
+            if (packet instanceof S2CConfigFinishConfigurationPacket || packet instanceof S2CPlayStartConfigurationPacket) {
+                if (dualConnection != null) {
+                    //disable read server->proxy packets, until two clients enter the PLAY state. Look ConfigurationPacketHandler.java
+                    dualConnection.disableAutoRead2();//for main and side connection
+                }
+            }
+            if (packet instanceof UnknownPacket p && p.packetId == joinGamePacketId) {
+                handleJoinGame(p, listeners);
+            }
+            if (packet instanceof S2CTransferPacket p) {
+                handleTransfer(p);
+                listeners.add(ChannelFutureListener.CLOSE);
+            }
 
-
-        if (sideConnection != null) {
-            for (PacketHandler packetHandler : sideConnection.getPacketHandlers()) {
+            for (PacketHandler packetHandler : mainConnection.getPacketHandlers()) {
                 packetHandler.handleP2S(packet, listeners);
             }
-            if (!mainConnection.isClosed()) {
+
+
+            if (sideConnection != null) {
+                for (PacketHandler packetHandler : sideConnection.getPacketHandlers()) {
+                    packetHandler.handleP2S(packet, listeners);
+                }
+                if (!mainConnection.isClosed()) {
+                    mainConnection.sendToClient(packet, listeners);
+                }
+                if (!sideConnection.isClosed()) {
+                    sideConnection.sendToClient(packet);
+                }
+            } else {
                 mainConnection.sendToClient(packet, listeners);
             }
-            if (!sideConnection.isClosed()) {
-                sideConnection.sendToClient(packet);
-            }
-        } else {
-            mainConnection.sendToClient(packet, listeners);
         }
     }
 
@@ -228,8 +229,7 @@ public class Proxy2ServerHandler extends SimpleChannelInboundHandler<Packet> {
         Logger.u_info("session " + Integer.toUnsignedString(mainConnection.hashCode(), 16), mainConnection, "Connected successfully! Switching to " + nextState + " state");
         Logger.u_info("session " + Integer.toUnsignedString(sideConnection.hashCode(), 16), sideConnection, "Connected successfully! Switching to " + nextState + " state");
 
-        dualConnection.disableAutoRead();
-        dualConnection.disableAutoRead();
+        dualConnection.disableAutoRead2();
         // restore in ConfigurationPacketHandler.java, C2SLoginAcknowledgedPacket and C2SPlayConfigurationAcknowledgedPacket
         // or here
         listeners.add(f -> {

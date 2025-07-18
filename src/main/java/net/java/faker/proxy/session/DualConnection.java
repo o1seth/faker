@@ -66,6 +66,7 @@ public class DualConnection {
     private long lastSwapControllerTime;
     private int connectTime;
     private LatencyChecker latencyChecker;
+    private int ttl;
     private int avgLatency;
     private int minLatency = Integer.MAX_VALUE;
 
@@ -95,7 +96,10 @@ public class DualConnection {
 
     public void disableAutoRead() {
         ChannelUtil.disableAutoRead(this.getChannel());
+    }
 
+    public void disableAutoRead2() {
+        ChannelUtil.disableAutoRead2(this.getChannel());
     }
 
     public void restoreAutoRead() {
@@ -334,10 +338,41 @@ public class DualConnection {
             int latencyCount = 0;
             minLatency = Integer.MAX_VALUE;
             int newLatency = 0;
+            int count = 0;
+            int lastTtl = 0;
             while (!isInterrupted()) {
                 if (!channel.isOpen()) {
                     break;
                 }
+                if (count % 4 == 0) {
+                    ttl = WinRedirect.getTtl(toIp, toPort, null, fromPort);
+                    if (Proxy.getConfig().tracerouteFix.get()) {
+                        if (lastTtl != ttl) {
+                            WinRedirect.setTtlOverride(Proxy.forward_redirect, ttl - 1);
+                            WinRedirect.setTtlOverride(Proxy.redirect, ttl);
+                            if (Proxy.transfer_forward_redirect != 0) {
+                                WinRedirect.setTtlOverride(Proxy.transfer_forward_redirect, ttl - 1);
+                            }
+                            if (Proxy.transfer_redirect != 0) {
+                                WinRedirect.setTtlOverride(Proxy.transfer_redirect, ttl);
+                            }
+                            lastTtl = ttl;
+                        }
+                    } else {
+                        if (lastTtl != 0) {
+                            WinRedirect.setTtlOverride(Proxy.forward_redirect, 0);
+                            WinRedirect.setTtlOverride(Proxy.redirect, 0);
+                            if (Proxy.transfer_forward_redirect != 0) {
+                                WinRedirect.setTtlOverride(Proxy.transfer_forward_redirect, 0);
+                            }
+                            if (Proxy.transfer_redirect != 0) {
+                                WinRedirect.setTtlOverride(Proxy.transfer_redirect, 0);
+                            }
+                            lastTtl = 0;
+                        }
+                    }
+                }
+
                 int latency = WinRedirect.getLatency(null, fromPort, toIp, toPort);
                 if (latency < getConnectTime() * 3 && latency > 2) {
                     latencySum += latency;
@@ -357,6 +392,9 @@ public class DualConnection {
                     }
                     if (Proxy.getConfig().autoLatency.get()) {
                         WinRedirect.redirectSetDefaultLatency(Proxy.forward_redirect, newLatency);
+                        if (Proxy.transfer_forward_redirect != 0) {
+                            WinRedirect.redirectSetDefaultLatency(Proxy.transfer_forward_redirect, newLatency);
+                        }
                     }
                 }
                 try {
@@ -364,7 +402,7 @@ public class DualConnection {
                 } catch (Exception e) {
 
                 }
-
+                count++;
             }
         }
     }

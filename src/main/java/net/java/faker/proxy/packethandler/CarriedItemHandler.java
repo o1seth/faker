@@ -43,6 +43,9 @@ public class CarriedItemHandler extends PacketHandler {
             if (dualConnection == null) {
                 return true;
             }
+            if (!dualConnection.isBothPlayState()) {
+                return true;
+            }
 
             ProxyConnection follower = dualConnection.getFollower();
             if (follower != null && !follower.isClosed()) {

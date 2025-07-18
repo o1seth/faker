@@ -127,6 +127,7 @@ typedef struct
 	UINT32 next_ip;
 	BOOL pause;
 	int default_packets_latency;
+	UINT8 ttl_override;
 } REDIRECT, * PREDIRECT;
 
 typedef struct
@@ -735,6 +736,11 @@ BOOL handle_out_packet(PTCP_CONNECTION con, unsigned char* packet, UINT packet_l
 	tcp_header->SrcPort = con->DstPort;// -> 80
 	ip_header->DstAddr = con->SrcIp;// -> 192.168.137.71
 	tcp_header->DstPort = con->SrcPort;// -> port of 192.168.137.71
+	PREDIRECT redirect = con->owner;
+
+	if (redirect->ttl_override > 0) {
+		ip_header->TTL = redirect->ttl_override;
+	}
 
 	if (is_debug()) {
 		char msg[512];
@@ -1396,6 +1402,74 @@ __declspec(dllexport) int redirect_get_latency(PREDIRECT r, char* ip, UINT16 por
 	return -1;
 }
 
+DWORD WINAPI getTtl_thread(LPVOID lpParam)
+{
+	HANDLE handle = (HANDLE)lpParam;
+	unsigned char* packet = malloc(MAXBUF);
+	UINT packet_len;
+	WINDIVERT_ADDRESS addr;
+	PWINDIVERT_IPHDR ip_header;
+	PWINDIVERT_TCPHDR tcp_header;
+	UINT32 look_seq = 0;
+	UINT64 time = 0;
+	DWORD result = 0xFFFFFFFF;
+	while (TRUE)
+	{
+		if (!WinDivertRecv(handle, packet, MAXBUF, &packet_len, &addr))
+		{
+			DWORD err = GetLastError();
+			if (err == ERROR_NO_DATA) {
+				debug("ttl_thread closed by shutdown");
+				break;
+			}
+			warning("[C] failed to read packet (%d)", err);
+			continue;
+		}
+		WinDivertHelperParsePacket(packet, packet_len, &ip_header, NULL, NULL,
+			NULL, NULL, &tcp_header, NULL, NULL, NULL, NULL, NULL);
+		if (ip_header == NULL || tcp_header == NULL)
+		{
+			warning("[C] failed to parse packet (%d)", GetLastError());
+			continue;
+		}
+		result = ip_header->TTL;
+		break;
+	}
+	free(packet);
+	return result;
+}
+
+__declspec(dllexport) int get_connection_ttl(char* fromIp, UINT16 fromPort, char* toIp, UINT16 toPort) {
+	char filter[256];
+	if (toIp == 0) {
+		snprintf(filter, sizeof(filter), "(tcp.DstPort == %d and ip.SrcAddr == %s and tcp.SrcPort == %d)", toPort, fromIp, fromPort);
+	}
+	else {
+		snprintf(filter, sizeof(filter),
+			"(ip.DstAddr == %s and tcp.DstPort == %d and ip.SrcAddr == %s and tcp.SrcPort == %d)", toIp, toPort, fromIp, fromPort);
+	}
+
+	HANDLE handle = WinDivertOpen(filter, WINDIVERT_LAYER_NETWORK, 0, WINDIVERT_FLAG_SNIFF | WINDIVERT_FLAG_RECV_ONLY);
+	if (handle == 0 || handle == INVALID_HANDLE_VALUE) {
+		return -1;
+	}
+	INT32 result = -1;
+
+	HANDLE thread = CreateThread(NULL, 100 * 1024, getTtl_thread, handle, 0, 0);
+	if (thread == 0) {
+		return -1;
+	}
+	WaitForSingleObject(thread, 1200);
+	WinDivertShutdown(handle, WINDIVERT_SHUTDOWN_BOTH);
+	WaitForSingleObject(thread, INFINITE);
+	WinDivertClose(handle);
+	DWORD exitCode = 0;
+	if (GetExitCodeThread(thread, &exitCode)) {
+		result = exitCode;
+	}
+	CloseHandle(thread);
+	return result;
+}
 __declspec(dllexport) UINT32 redirect_get_active_connections_count(PREDIRECT r) {
 	if (r == NULL) {
 		error("null");
@@ -1421,6 +1495,23 @@ __declspec(dllexport) BOOL redirect_remove_skip_port(PREDIRECT r, UINT16 port) {
 		}
 	}
 	return FALSE;
+}
+
+__declspec(dllexport) BOOL redirect_set_ttl_override(PREDIRECT r, UINT8 ttl) {
+	if (r == NULL) {
+		error("null");
+		return FALSE;
+	}
+	r->ttl_override = ttl;
+	return TRUE;
+}
+
+__declspec(dllexport) UINT8 redirect_get_ttl_override(PREDIRECT r) {
+	if (r == NULL) {
+		error("null");
+		return 0;
+	}
+	return r->ttl_override;
 }
 
 __declspec(dllexport) BOOL redirect_add_skip_port(PREDIRECT r, UINT16 port) {
@@ -2491,7 +2582,7 @@ __declspec(dllexport) INT32 getLatency(char* fromIp, UINT16 fromPort, char* toIp
 	DWORD exitCode = 0;
 	if (GetExitCodeThread(thread, &exitCode)) {
 		result = exitCode;
-	}	
+	}
 	CloseHandle(thread);
 	return result;
 }
@@ -2611,6 +2702,14 @@ JNIEXPORT void JNICALL Java_net_java_faker_WinRedirect_redirectResume(JNIEnv* en
 	redirect_resume((PREDIRECT)jRedirect);
 }
 
+JNIEXPORT jboolean JNICALL Java_net_java_faker_WinRedirect_setTtlOverride(JNIEnv* env, jclass cl, jlong jRedirect, jint ttl) {
+	return redirect_set_ttl_override(jRedirect, ttl);
+}
+
+JNIEXPORT jint JNICALL Java_net_java_faker_WinRedirect_getTtlOverride(JNIEnv* env, jclass cl, jlong jRedirect) {
+	return redirect_get_ttl_override(jRedirect);
+}
+
 JNIEXPORT jboolean JNICALL Java_net_java_faker_WinRedirect_redirectAddSkipPort(JNIEnv* env, jclass cl, jlong jRedirect, jint port) {
 	return redirect_add_skip_port((PREDIRECT)jRedirect, (UINT16)port);
 }
@@ -2654,6 +2753,17 @@ JNIEXPORT jint JNICALL Java_net_java_faker_WinRedirect_getLatency(JNIEnv* env, j
 	char* fromIp = jfromIp == 0 ? 0 : (*env)->GetStringUTFChars(env, jfromIp, 0);
 	char* toIp = (*env)->GetStringUTFChars(env, jtoIp, 0);
 	INT32 result = getLatency(fromIp, fromPort, toIp, toPort);
+	if (fromIp != 0) {
+		(*env)->ReleaseStringUTFChars(env, jfromIp, fromIp);
+	}
+	(*env)->ReleaseStringUTFChars(env, jtoIp, toIp);
+	return result;
+}
+
+JNIEXPORT jint JNICALL Java_net_java_faker_WinRedirect_getTtl(JNIEnv* env, jclass cl, jstring jfromIp, jint fromPort, jstring jtoIp, jint toPort) {
+	char* fromIp = (*env)->GetStringUTFChars(env, jfromIp, 0);
+	char* toIp = jtoIp == 0 ? 0 : (*env)->GetStringUTFChars(env, jtoIp, 0);
+	INT32 result = get_connection_ttl(fromIp, fromPort, toIp, toPort);
 	if (fromIp != 0) {
 		(*env)->ReleaseStringUTFChars(env, jfromIp, fromIp);
 	}

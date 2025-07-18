@@ -30,6 +30,15 @@ public class ChannelUtil {
     private static final AttributeKey<Stack<Boolean>> LAST_AUTO_READ = AttributeKey.valueOf("last-auto-read");
 
     public static void disableAutoRead(final Channel channel) {
+        disableAutoRead0(channel);
+    }
+
+    public static void disableAutoRead2(final Channel channel) {
+        disableAutoRead0(channel);
+        disableAutoRead0(channel);
+    }
+
+    private static void disableAutoRead0(final Channel channel) {
         if (channel == null) {
             return;
         }

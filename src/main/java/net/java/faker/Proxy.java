@@ -66,6 +66,7 @@ public class Proxy {
     public static final int connectTimeout = 8000;
     public static DualConnection dualConnection;
     public static final Object dualConnectionLocker = new Object();
+    public static final Object ioLocker = new Object();
     private static Config config;
     private static AccountManager accountManager;
     private static Account account;
@@ -137,6 +138,7 @@ public class Proxy {
                 }
             }
         }
+
         Logger.setup();
         loadNetty();
         config = new Config(new File(getFakerDirectory(), "faker_config.json"));

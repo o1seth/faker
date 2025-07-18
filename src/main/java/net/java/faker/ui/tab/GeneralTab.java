@@ -399,6 +399,9 @@ public class GeneralTab extends UITab {
             proxyConnection.setLatency(slider.getValue());
             if (Proxy.getConfig().autoLatency.get() && mode.getSelectedIndex() == 2) {
                 WinRedirect.redirectSetDefaultLatency(Proxy.forward_redirect, slider.getValue());
+                if (Proxy.transfer_forward_redirect != 0) {
+                    WinRedirect.redirectSetDefaultLatency(Proxy.transfer_forward_redirect, slider.getValue());
+                }
             }
         }
         proxyConnection.setLatencyChangeListener(null);
