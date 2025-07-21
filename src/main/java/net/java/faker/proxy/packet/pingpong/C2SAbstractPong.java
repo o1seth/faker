@@ -16,11 +16,11 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package net.java.faker.proxy.packet;
+package net.java.faker.proxy.packet.pingpong;
 
-import net.raphimc.netminecraft.packet.Packet;
+import net.java.faker.proxy.packet.C2SAbstractResponse;
 
-public abstract class C2SAbstractPong implements Packet {
+public interface C2SAbstractPong extends C2SAbstractResponse {
 
-    public abstract int getId();
+
 }

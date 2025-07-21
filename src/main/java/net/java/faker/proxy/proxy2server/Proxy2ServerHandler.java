@@ -26,8 +26,8 @@ import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import net.java.faker.Proxy;
-import net.java.faker.proxy.PacketRegistry;
 import net.java.faker.proxy.auth.ExternalInterface;
+import net.java.faker.proxy.packet.S2CAbstractRequest;
 import net.java.faker.proxy.packethandler.PacketHandler;
 import net.java.faker.proxy.session.DualConnection;
 import net.java.faker.proxy.session.ProxyConnection;
@@ -167,7 +167,11 @@ public class Proxy2ServerHandler extends SimpleChannelInboundHandler<Packet> {
             for (PacketHandler packetHandler : mainConnection.getPacketHandlers()) {
                 packetHandler.handleP2S(packet, listeners);
             }
-
+            if (packet instanceof S2CAbstractRequest p) {
+                if (dualConnection != null && dualConnection.handleAbstractRequest(p)) {
+                    return;
+                }
+            }
 
             if (sideConnection != null) {
                 for (PacketHandler packetHandler : sideConnection.getPacketHandlers()) {

@@ -19,6 +19,14 @@
 package net.java.faker.proxy;
 
 import net.java.faker.proxy.packet.*;
+import net.java.faker.proxy.packet.keepalive.C2SConfigKeepAlive;
+import net.java.faker.proxy.packet.keepalive.C2SPlayKeepAlive;
+import net.java.faker.proxy.packet.keepalive.S2CConfigKeepAlive;
+import net.java.faker.proxy.packet.keepalive.S2CPlayKeepAlive;
+import net.java.faker.proxy.packet.pingpong.C2SPong;
+import net.java.faker.proxy.packet.pingpong.C2SWindowConfirmation;
+import net.java.faker.proxy.packet.pingpong.S2CPing;
+import net.java.faker.proxy.packet.pingpong.S2CWindowConfirmation;
 import net.raphimc.netminecraft.constants.MCPackets;
 import net.raphimc.netminecraft.constants.MCVersion;
 import net.raphimc.netminecraft.packet.registry.DefaultPacketRegistry;
@@ -96,5 +104,11 @@ public class PacketRegistry extends DefaultPacketRegistry {
         } else if (protocolVersion >= MCVersion.v1_7_2) {
             registerPacket(MCPackets.S2C_PLAYER_POSITION, S2CPlayerPosition.v1_7_2::new);
         }
+        this.registerPacket(MCPackets.C2S_KEEP_ALIVE, C2SPlayKeepAlive::new);
+        this.registerPacket(MCPackets.S2C_KEEP_ALIVE, S2CPlayKeepAlive::new);
+        this.registerPacket(MCPackets.C2S_CONFIG_KEEP_ALIVE, C2SConfigKeepAlive::new);
+        this.registerPacket(MCPackets.S2C_CONFIG_KEEP_ALIVE, S2CConfigKeepAlive::new);
+
+        this.registerPacket(MCPackets.S2C_WINDOW_CONFIRMATION, S2CWindowConfirmation::new);
     }
 }

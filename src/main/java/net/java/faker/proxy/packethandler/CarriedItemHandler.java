@@ -46,7 +46,9 @@ public class CarriedItemHandler extends PacketHandler {
             if (!dualConnection.isBothPlayState()) {
                 return true;
             }
-
+            if (!dualConnection.isBothAutoRead()) {
+                return true;
+            }
             ProxyConnection follower = dualConnection.getFollower();
             if (follower != null && !follower.isClosed()) {
                 S2CSetCarriedItem setCarriedItem = new S2CSetCarriedItem();

@@ -82,7 +82,6 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
                     if (!WinRedirect.redirectGetRealAddresses(Proxy.transfer_forward_redirect, remote.getAddress().getHostAddress(), remote.getPort(), addresses)) {
                         WinRedirect.redirectGetRealAddresses(Proxy.transfer_redirect, remote.getAddress().getHostAddress(), remote.getPort(), addresses);
                     }
-                    System.out.println("TRANSFER FOUND " + addresses[0] + " " + addresses[1]);
                 }
             }
             realSrc = addresses[0];

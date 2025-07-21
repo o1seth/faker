@@ -16,45 +16,39 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package net.java.faker.proxy.packet;
+package net.java.faker.proxy.packet.keepalive;
 
-import io.netty.buffer.ByteBuf;
+import net.raphimc.netminecraft.packet.impl.common.S2CKeepAlivePacket;
+import net.raphimc.netminecraft.packet.impl.play.S2CPlayKeepAlivePacket;
 
-public class C2SPong extends C2SAbstractPong {
-    public int id;
+public class S2CPlayKeepAlive extends S2CPlayKeepAlivePacket implements S2CAbstractKeepAlive {
+    public S2CPlayKeepAlive() {
+    }
 
-    @Override
-    public void read(ByteBuf byteBuf, int protocolVersion) {
-        this.id = byteBuf.readInt();
+    public S2CPlayKeepAlive(final long id) {
+        super(id);
     }
 
     @Override
-    public void write(ByteBuf byteBuf, int protocolVersion) {
-        byteBuf.writeInt(this.id);
-    }
-
-    @Override
-    public int getId() {
-        return id;
+    public long getId() {
+        return this.id;
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        C2SPong c2SPong = (C2SPong) o;
-        return id == c2SPong.id;
+        S2CKeepAlivePacket that = (S2CKeepAlivePacket) o;
+        return id == that.id;
     }
 
     @Override
     public int hashCode() {
-        return id;
+        return Long.hashCode(id);
     }
 
     @Override
     public String toString() {
-        return "C2SPong " + id;
+        return "S2CPlayKeepAlive " + id;
     }
-
-
 }

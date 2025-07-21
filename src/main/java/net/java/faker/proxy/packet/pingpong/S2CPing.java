@@ -16,51 +16,30 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package net.java.faker.proxy.packet;
+package net.java.faker.proxy.packet.pingpong;
 
 import io.netty.buffer.ByteBuf;
 
-import java.util.Objects;
-
-public class C2SWindowConfirmation extends C2SAbstractPong {
-    public int windowId;
-    public short uid;
-    public boolean accepted;
+public class S2CPing implements S2CAbstractPing {
+    public int id;
 
     @Override
     public void read(ByteBuf byteBuf, int protocolVersion) {
-        this.windowId = byteBuf.readByte();
-        this.uid = byteBuf.readShort();
-        this.accepted = byteBuf.readByte() != 0;
+        this.id = byteBuf.readInt();
     }
 
     @Override
     public void write(ByteBuf byteBuf, int protocolVersion) {
-        byteBuf.writeByte(this.windowId);
-        byteBuf.writeShort(this.uid);
-        byteBuf.writeByte(this.accepted ? 1 : 0);
+        byteBuf.writeInt(this.id);
     }
 
     @Override
-    public int getId() {
-        return uid;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        C2SWindowConfirmation that = (C2SWindowConfirmation) o;
-        return windowId == that.windowId && uid == that.uid && accepted == that.accepted;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(windowId, uid, accepted);
+    public long getId() {
+        return id;
     }
 
     @Override
     public String toString() {
-        return "C2SWindowConfirmation " + windowId + ": " + uid + ", " + accepted;
+        return "S2CPing " + id;
     }
 }

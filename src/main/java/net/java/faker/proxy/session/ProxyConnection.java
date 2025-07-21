@@ -28,7 +28,10 @@ import net.java.faker.Proxy;
 import net.java.faker.WinRedirect;
 import net.java.faker.auth.Account;
 import net.java.faker.proxy.PacketRegistry;
-import net.java.faker.proxy.packet.C2SAbstractPong;
+import net.java.faker.proxy.packet.C2SAbstractResponse;
+import net.java.faker.proxy.packet.S2CAbstractRequest;
+import net.java.faker.proxy.packet.keepalive.C2SAbstractKeepAlive;
+import net.java.faker.proxy.packet.pingpong.C2SAbstractPong;
 import net.java.faker.proxy.packet.C2SMovePlayer;
 import net.java.faker.proxy.packethandler.PacketHandler;
 import net.java.faker.proxy.util.CloseAndReturn;
@@ -79,7 +82,7 @@ public class ProxyConnection extends NetClient {
 
     private ConnectionState c2pConnectionState = ConnectionState.HANDSHAKING;
     private ConnectionState p2sConnectionState = ConnectionState.HANDSHAKING;
-    private static final int MAX_SENT_PACKETS = 64;
+    private static final int MAX_SENT_PACKETS = 256;
     private final LinkedList<Packet> sentPackets = new LinkedList<>();
 
     Object controllerLocker = new Object();
@@ -96,6 +99,8 @@ public class ProxyConnection extends NetClient {
     private int latency;
     private int connectTime = -1;// only for first ProxyConnection
     private Consumer<ProxyConnection> latencyChange;
+    private int pongNum;
+    private int keepAliveNum;
 
     public ProxyConnection(final ChannelInitializer<Channel> channelInitializerSupplier, final Channel c2p) {
         this(channelInitializerSupplier, c2p, null, null);
@@ -249,10 +254,6 @@ public class ProxyConnection extends NetClient {
         this.account = account;
     }
 
-    public ConnectionState getC2pConnectionState() {
-        return this.c2pConnectionState;
-    }
-
     private boolean skipPacket(Object packet) {
         if (packet instanceof C2SAbstractPong pong) {
             if (dualConnection != null && dualConnection.skipPong(pong)) {
@@ -263,11 +264,67 @@ public class ProxyConnection extends NetClient {
         return false;
     }
 
+    private boolean preC2S(Object packet) {
+        if (!Proxy.getConfig().newPingCorrection.get()) {
+            return false;
+        }
+        if (packet instanceof C2SAbstractResponse response) {
+            synchronized (dualConnection.pongs) {
+                int num = -1;
+                if (response instanceof C2SAbstractPong) {
+                    num = pongNum - 1;
+                } else if (response instanceof C2SAbstractKeepAlive) {
+                    num = keepAliveNum - 1;
+                }
+
+                int index = dualConnection.getPongIndexByNum(num, response);
+
+                DualConnection.Pong pong = dualConnection.pongs.get(index);
+                if (pong == null) {
+                    Logger.error("Pong is null for " + packet);
+                    return false;
+                }
+                C2SAbstractResponse p = pong.packet;
+                if (!p.equals(packet)) {
+                    Logger.error("Not equals pong packets: " + p + " != " + packet + " " + num);
+                }
+                if (pong.sent) {
+//                    Logger.raw("Skip sent packet " + pong.packet);
+                    return true;
+                }
+                pong.sent = true;
+                for (int i = Math.max(0, index - 20); i < index; i++) {
+                    pong = dualConnection.pongs.get(i);
+                    if (!pong.sent) {
+                        //send unsent packets
+//                        Logger.raw("Send unsent packet " + pong.packet);
+                        pong.sent = true;
+                        sendServer(pong.packet);
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private synchronized void preHandleC2S(Object packet) {
+        if (!Proxy.getConfig().newPingCorrection.get()) {
+            return;
+        }
+        if (packet instanceof C2SAbstractResponse response) {
+            if (response instanceof C2SAbstractPong) {
+                pongNum++;
+            } else if (response instanceof C2SAbstractKeepAlive) {
+                keepAliveNum++;
+            }
+        }
+    }
+
     private ChannelFuture sendServer(Object msg) {
         return getChannel().writeAndFlush(msg);
     }
 
-    private void addSentPacket(Packet packet) {
+    void addSentPacket(Packet packet) {
         this.sentPackets.addLast(packet);
         while (this.sentPackets.size() > MAX_SENT_PACKETS) {
             this.sentPackets.removeFirst();
@@ -303,12 +360,16 @@ public class ProxyConnection extends NetClient {
 
     public void sendToServer(Packet packet, List<ChannelFutureListener> listeners) {
         synchronized (controllerLocker) {
+            preHandleC2S(packet);
             if (!isController) {
                 addSentPacket(packet);
                 return;
             }
             addSentPacket(packet);
             if (skipPacket(packet)) {
+                return;
+            }
+            if (preC2S(packet)) {
                 return;
             }
             if (listeners == null) {
@@ -321,12 +382,16 @@ public class ProxyConnection extends NetClient {
 
     public void sendToServer(Packet packet, ChannelFutureListener listener) {
         synchronized (controllerLocker) {
+            preHandleC2S(packet);
             if (!isController) {
                 addSentPacket(packet);
                 return;
             }
             addSentPacket(packet);
             if (skipPacket(packet)) {
+                return;
+            }
+            if (preC2S(packet)) {
                 return;
             }
             if (listener == null) {
@@ -339,10 +404,14 @@ public class ProxyConnection extends NetClient {
 
     public void sendToServer(ByteBuf packet, ChannelFutureListener listener) {
         synchronized (controllerLocker) {
+            preHandleC2S(packet);
             if (!isController) {
                 return;
             }
             if (skipPacket(packet)) {
+                return;
+            }
+            if (preC2S(packet)) {
                 return;
             }
             if (listener == null) {
@@ -355,11 +424,15 @@ public class ProxyConnection extends NetClient {
 
     public void sendToServer(Packet packet, ChannelFutureListener... listeners) {
         synchronized (controllerLocker) {
+            preHandleC2S(packet);
             if (!isController) {
                 addSentPacket(packet);
                 return;
             }
             if (skipPacket(packet)) {
+                return;
+            }
+            if (preC2S(packet)) {
                 return;
             }
             if (listeners == null) {
@@ -371,6 +444,9 @@ public class ProxyConnection extends NetClient {
     }
 
     private ChannelFuture sendClient(Packet packet) {
+        if (packet instanceof S2CAbstractRequest p) {
+//            Logger.raw("CLNT " + p);
+        }
         return this.c2p.writeAndFlush(packet);
     }
 
@@ -400,6 +476,10 @@ public class ProxyConnection extends NetClient {
         } else {
             sendClient(packet).addListeners(listeners);
         }
+    }
+
+    public ConnectionState getC2pConnectionState() {
+        return this.c2pConnectionState;
     }
 
     public void setC2pConnectionState(final ConnectionState connectionState) {
@@ -447,10 +527,6 @@ public class ProxyConnection extends NetClient {
             }
         }
         return pongs;
-    }
-
-    public List<Packet> getSentPackets() {
-        return sentPackets;
     }
 
     public boolean isClosed() {
@@ -516,7 +592,7 @@ public class ProxyConnection extends NetClient {
     public void setLatencyMode(LatencyMode latencyMode) {
         this.latencyMode = latencyMode;
         if (this.latencyMode == LatencyMode.DISABLED) {
-            this.latency = 0;
+            setLatency0(0);
             if (latencyChange != null) {
                 latencyChange.accept(this);
             }
@@ -529,20 +605,28 @@ public class ProxyConnection extends NetClient {
 
     public void setLatency(int latency) {
         if (this.latencyMode != LatencyMode.DISABLED) {
-            if (this.latency != latency) {
-                this.latency = latency;
-                InetSocketAddress remote = (InetSocketAddress) this.c2p.remoteAddress();
-                String ip = remote.getAddress().getHostAddress();
-                int port = remote.getPort();
-                if (!WinRedirect.setRedirectLatency(Proxy.forward_redirect, ip, port, this.latency)) {
-                    WinRedirect.setRedirectLatency(Proxy.redirect, ip, port, this.latency);
-                }
-                if (latencyChange != null) {
-                    latencyChange.accept(this);
+            setLatency0(latency);
+        }
+    }
+
+    private void setLatency0(int latency) {
+        if (this.latency != latency) {
+            this.latency = latency;
+            InetSocketAddress remote = (InetSocketAddress) this.c2p.remoteAddress();
+            String ip = remote.getAddress().getHostAddress();
+            int port = remote.getPort();
+            if (!WinRedirect.setRedirectLatency(Proxy.forward_redirect, ip, port, this.latency)) {
+                WinRedirect.setRedirectLatency(Proxy.redirect, ip, port, this.latency);
+            }
+            if (Proxy.transfer_redirect != 0) {
+                if (!WinRedirect.setRedirectLatency(Proxy.transfer_forward_redirect, ip, port, this.latency)) {
+                    WinRedirect.setRedirectLatency(Proxy.transfer_redirect, ip, port, this.latency);
                 }
             }
+            if (latencyChange != null) {
+                latencyChange.accept(this);
+            }
         }
-
     }
 
     public synchronized void setConnectTime(int connectTime) {
@@ -579,13 +663,13 @@ public class ProxyConnection extends NetClient {
         if (!Proxy.getConfig().showKickErrors.get() || message == null) {
             future = this.c2p.newSucceededFuture();
         } else if (this.c2pConnectionState == ConnectionState.STATUS) {
-            future = this.c2p.writeAndFlush(new S2CStatusResponsePacket("{\"players\":{\"max\":0,\"online\":0},\"description\":" + new JsonPrimitive(message) + ",\"version\":{\"protocol\":-1,\"name\":\"Proxy\"}}"));
+            future = this.sendClient(new S2CStatusResponsePacket("{\"players\":{\"max\":0,\"online\":0},\"description\":" + new JsonPrimitive(message) + ",\"version\":{\"protocol\":-1,\"name\":\"Proxy\"}}"));
         } else if (this.c2pConnectionState == ConnectionState.LOGIN) {
-            future = this.c2p.writeAndFlush(new S2CLoginDisconnectPacket(new StringComponent(message)));
+            future = this.sendClient(new S2CLoginDisconnectPacket(new StringComponent(message)));
         } else if (this.c2pConnectionState == ConnectionState.CONFIGURATION) {
-            future = this.c2p.writeAndFlush(new S2CConfigDisconnectPacket(new StringComponent(message)));
+            future = this.sendClient(new S2CConfigDisconnectPacket(new StringComponent(message)));
         } else if (this.c2pConnectionState == ConnectionState.PLAY) {
-            future = this.c2p.writeAndFlush(new S2CPlayDisconnectPacket(new StringComponent(message)));
+            future = this.sendClient(new S2CPlayDisconnectPacket(new StringComponent(message)));
         } else {
             future = this.c2p.newSucceededFuture();
         }

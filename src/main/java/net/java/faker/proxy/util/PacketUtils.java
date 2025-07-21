@@ -18,8 +18,8 @@
 
 package net.java.faker.proxy.util;
 
-import net.java.faker.proxy.packet.C2SPong;
-import net.java.faker.proxy.packet.S2CPing;
+import net.java.faker.proxy.packet.pingpong.C2SPong;
+import net.java.faker.proxy.packet.pingpong.S2CPing;
 import net.raphimc.netminecraft.packet.Packet;
 import net.raphimc.netminecraft.packet.impl.handshaking.C2SHandshakingClientIntentionPacket;
 import net.raphimc.netminecraft.packet.impl.login.C2SLoginHelloPacket;

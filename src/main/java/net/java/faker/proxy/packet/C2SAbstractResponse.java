@@ -18,20 +18,9 @@
 
 package net.java.faker.proxy.packet;
 
-import io.netty.buffer.ByteBuf;
 import net.raphimc.netminecraft.packet.Packet;
 
-public class S2CPing implements Packet {
-    public int id;
+public interface C2SAbstractResponse extends Packet {
 
-    @Override
-    public void read(ByteBuf byteBuf, int protocolVersion) {
-        this.id = byteBuf.readInt();
-    }
-
-    @Override
-    public void write(ByteBuf byteBuf, int protocolVersion) {
-        byteBuf.writeInt(this.id);
-    }
-
+    long getId();
 }

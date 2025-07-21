@@ -46,6 +46,9 @@ public class CloseContainerHandler extends PacketHandler {
             if (!dualConnection.isBothPlayState()) {
                 return true;
             }
+            if (!dualConnection.isBothAutoRead()) {
+                return true;
+            }
             ProxyConnection follower = dualConnection.getFollower();
             if (follower != null && !follower.isClosed()) {
                 S2CContainerClose containerClose = new S2CContainerClose();
