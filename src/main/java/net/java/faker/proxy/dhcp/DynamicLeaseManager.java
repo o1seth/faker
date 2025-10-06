@@ -26,6 +26,7 @@ import org.apache.directory.server.dhcp.DhcpException;
 import org.apache.directory.server.dhcp.io.DhcpRequestContext;
 import org.apache.directory.server.dhcp.messages.DhcpMessage;
 import org.apache.directory.server.dhcp.messages.HardwareAddress;
+import org.apache.directory.server.dhcp.options.vendor.DomainName;
 import org.apache.directory.server.dhcp.options.vendor.DomainNameServers;
 import org.apache.directory.server.dhcp.options.vendor.Routers;
 import org.apache.directory.server.dhcp.options.vendor.SubnetMask;
@@ -155,6 +156,9 @@ public class DynamicLeaseManager extends AbstractDynamicLeaseManager {
         }
         reply.getOptions().add(routers);
         reply.getOptions().add(nameServers);
+//        DomainName domainName = new DomainName();
+//        domainName.setStringValue("");
+//        reply.getOptions().add(domainName);
         if (mask != null) {
             reply.getOptions().add(mask);
         }

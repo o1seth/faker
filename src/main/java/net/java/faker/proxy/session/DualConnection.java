@@ -23,10 +23,7 @@ import io.netty.channel.Channel;
 import net.java.faker.Proxy;
 import net.java.faker.WinRedirect;
 import net.java.faker.proxy.event.SwapEvent;
-import net.java.faker.proxy.packet.C2SAbstractResponse;
-import net.java.faker.proxy.packet.C2SPlayerCommand;
-import net.java.faker.proxy.packet.S2CAbstractRequest;
-import net.java.faker.proxy.packet.S2CSetPassengers;
+import net.java.faker.proxy.packet.*;
 import net.java.faker.proxy.packet.keepalive.*;
 import net.java.faker.proxy.packet.pingpong.*;
 import net.java.faker.proxy.util.ChannelUtil;
@@ -75,15 +72,28 @@ public class DualConnection {
     private int avgLatency;
     private int minLatency = Integer.MAX_VALUE;
     final ArrayList<Pong> pongs = new ArrayList<>();
+//    final ArrayList<Teleport> teleports = new ArrayList<>();
     int nextPongNum;
     int nextKeepAliveNum;
+    int nextTeleportNum;
 
     public static class Pong {
         final C2SAbstractResponse packet;
-        boolean sent;
+        volatile boolean sent;
         final int num;
 
         private Pong(C2SAbstractResponse packet, int num) {
+            this.packet = packet;
+            this.num = num;
+        }
+    }
+
+    public static class Teleport {
+        final C2SAcceptTeleport packet;
+        volatile boolean sent;
+        final int num;
+
+        private Teleport(C2SAcceptTeleport packet, int num) {
             this.packet = packet;
             this.num = num;
         }
@@ -358,6 +368,23 @@ public class DualConnection {
         return -1;
     }
 
+//    public boolean handleTeleport(S2CPlayerPosition packet) {
+//        if (mainConnection.getVersion() < MCVersion.v1_9) {
+//            return false;
+//        }
+//        synchronized (teleports) {
+//            int num = nextTeleportNum;
+//            nextTeleportNum++;
+//
+//            Teleport tp = new Teleport(new C2SAcceptTeleport(packet.getTeleportId()), num);
+//            teleports.add(tp);
+//            if (teleports.size() > 128) {
+//                teleports.remove(0);
+//            }
+//        }
+//        return false;
+//    }
+
     public boolean handleAbstractRequest(S2CAbstractRequest packet) {
         if (!Proxy.getConfig().newPingCorrection.get()) {
             return false;
@@ -376,26 +403,27 @@ public class DualConnection {
                 if (num >= 0) {
                     Pong pong = new Pong(pongPacket, num);
                     pongs.add(pong);
-                    if (pongs.size() > 256) {
+                    if (pongs.size() > 384) {
                         pongs.remove(0);
                     }
-
-                    synchronized (controllerLocker) {
-                        ProxyConnection controller = getController0();
-                        if (controller != null && controller.getLatency() > 0) {
-                            int to = pongs.size() - 1;
-                            for (int i = Math.max(0, to - 20); i < to; i++) {
-                                Pong p = pongs.get(i);
-                                if (!p.sent) {
+                    //this code is used for bypass 2x ping when you play from device with latency
+//                    synchronized (controllerLocker) {
+//                        ProxyConnection controller = getController0();
+//                        if (controller != null && controller.getLatency() > 0) {
+//                            int to = pongs.size() - 1;
+//                            for (int i = Math.max(0, to - 30); i < to; i++) {
+//                                Pong p = pongs.get(i);
+//                                if (!p.sent) {
 //                                    Logger.raw("Send unsent packet (dual) " + pong.packet);
-                                    p.sent = true;
-                                    mainConnection.getChannel().writeAndFlush(p.packet);
-                                }
-                            }
-                            pong.sent = true;
-                            mainConnection.getChannel().writeAndFlush(pong.packet);
-                        }
-                    }
+//                                    p.sent = true;
+//                                    mainConnection.getChannel().writeAndFlush(p.packet);
+//                                }
+//                            }
+//                            pong.sent = true;
+//                            Logger.raw("Send new unsent packet (dual) " + pong.packet + " " + controller.getLatency());
+//                            mainConnection.getChannel().writeAndFlush(pong.packet);
+//                        }
+//                    }
                 } else {
                     Logger.raw("Unknown request packet " + packet);
                 }
@@ -484,6 +512,20 @@ public class DualConnection {
                             if (Proxy.transfer_redirect != 0) {
                                 WinRedirect.setTtlOverride(Proxy.transfer_redirect, ttl);
                             }
+                            int paththroughTtl = 0;
+                            if (63 - ttl > 0) {
+                                paththroughTtl = 63 - ttl;
+                            } else if (127 - ttl > 0) {
+                                paththroughTtl = 128 - ttl;
+                            } else if (255 - ttl > 0) {
+                                paththroughTtl = 255 - ttl;
+                            }
+                            if (paththroughTtl < 24) {
+                                WinRedirect.setTtlPaththrough(Proxy.forward_redirect, paththroughTtl);
+                                if (Proxy.transfer_forward_redirect != 0) {
+                                    WinRedirect.setTtlPaththrough(Proxy.transfer_forward_redirect, paththroughTtl);
+                                }
+                            }
                             lastTtl = ttl;
                         }
                     } else {
@@ -495,6 +537,10 @@ public class DualConnection {
                             }
                             if (Proxy.transfer_redirect != 0) {
                                 WinRedirect.setTtlOverride(Proxy.transfer_redirect, 0);
+                            }
+                            WinRedirect.setTtlPaththrough(Proxy.forward_redirect, 0);
+                            if (Proxy.transfer_forward_redirect != 0) {
+                                WinRedirect.setTtlPaththrough(Proxy.transfer_forward_redirect, 0);
                             }
                             lastTtl = 0;
                         }

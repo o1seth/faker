@@ -25,6 +25,7 @@ import net.java.faker.ui.I18n;
 import net.java.faker.ui.UITab;
 import net.java.faker.ui.Window;
 import net.java.faker.ui.elements.NetworkAdapterComboBox;
+import net.java.faker.util.Util;
 import net.java.faker.util.network.NetworkInterface;
 import net.java.faker.util.network.NetworkUtil;
 
@@ -102,6 +103,33 @@ public class AdvancedTab extends UITab {
                 I18n.linkTooltip(mdnsDisable, "tab.advanced.mdns_disable.tooltip");
                 this.mdnsDisable.setSelected(Proxy.getConfig().mdnsDisable.get());
                 checkboxes.add(this.mdnsDisable);
+                this.mdnsDisable.addActionListener(e -> {
+                    if (this.mdnsDisable.isEnabled()) {
+                        if (this.mdnsDisable.isSelected()) {
+                            new Thread(() -> {
+                                SwingUtilities.invokeLater(() -> this.mdnsDisable.setEnabled(false));
+                                Proxy.mdnsDisable();
+                                Util.sleep(500);
+                                SwingUtilities.invokeLater(() -> this.mdnsDisable.setEnabled(true));
+                            }).start();
+                        } else {
+                            new Thread(() -> {
+                                SwingUtilities.invokeLater(() -> this.mdnsDisable.setEnabled(false));
+                                Proxy.mdnsRestore();
+                                Util.sleep(500);
+                                SwingUtilities.invokeLater(() -> this.mdnsDisable.setEnabled(true));
+                            }).start();
+                        }
+                    }
+
+                });
+                if (this.mdnsDisable.isSelected()) {
+                    new Thread(() -> {
+                        SwingUtilities.invokeLater(() -> this.mdnsDisable.setEnabled(false));
+                        Proxy.mdnsDisable();
+                        SwingUtilities.invokeLater(() -> this.mdnsDisable.setEnabled(true));
+                    }).start();
+                }
             }
 
             {
@@ -131,6 +159,11 @@ public class AdvancedTab extends UITab {
                     if (ni.hasInternetAccess()) {
                         SwingUtilities.invokeLater(() -> Window.showWarning(String.format(I18n.get("tab.advanced.error.internet_adapter"), ni)));
                     }
+//                    if (ni == NetworkInterface.NULL || ni.hasInternetAccess()) {
+//                        tracerouteFix.setEnabled(false);
+//                    } else {
+//                        tracerouteFix.setEnabled(true);
+//                    }
                 });
                 networkAdapters.setValueCanBeNull(true);
                 checkboxes.add(networkAdapters);

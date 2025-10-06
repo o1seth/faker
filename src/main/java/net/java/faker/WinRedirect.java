@@ -93,6 +93,10 @@ public class WinRedirect {
 
     public static native int getTtl(String fromIp, int fromPort, String toIp, int toPort);
 
+    public static native boolean setTtlPaththrough(long redirect, int ttl);
+
+    public static native int getTtlPaththrough(long redirect);
+
     public static native boolean setTtlOverride(long redirect, int ttl);
 
     public static native int getTtlOverride(long redirect);
@@ -179,7 +183,7 @@ public class WinRedirect {
 
     public static native boolean mdnsLlmnrRestore(long mdns);
 
-    public static native boolean enableTtlFix();
+    public static native boolean enableTtlFix(String hopAddr, String fixAddr);
 
     public static native boolean disableTtlFix();
 

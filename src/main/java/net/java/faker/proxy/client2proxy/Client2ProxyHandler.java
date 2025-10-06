@@ -265,9 +265,9 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
 //        if (packet instanceof UnknownPacket p) {
 //            PacketRegistry reg = (PacketRegistry) ctx.channel().attr(MCPipeline.PACKET_REGISTRY_ATTRIBUTE_KEY).get();
 //            final MCPackets packetType = MCPackets.getPacket(reg.getConnectionState(), PacketDirection.SERVERBOUND, reg.getProtocolVersion(), p.packetId);
-//            Logger.raw("IN  " + "Unknown " + p.packetId + " " + packetType);
+//            Logger.raw("OUT  " + "Unknown " + p.packetId + " " + packetType);
 //        } else {
-//            Logger.raw("OUT  " + PacketUtils.toString(packet));
+//            Logger.raw("OUT  " + PacketUtils.toString(packet) + " " + this.proxyConnection.isController());
 //        }
 
         if (!(packet instanceof UnknownPacket)) {

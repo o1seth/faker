@@ -84,6 +84,7 @@ public class PacketRegistry extends DefaultPacketRegistry {
         if (protocolVersion >= MCVersion.v1_9) {
             registerPacket(MCPackets.C2S_MOVE_VEHICLE, C2SMoveVehicle::new);
             registerPacket(MCPackets.S2C_SET_PASSENGERS, S2CSetPassengers::new);
+            registerPacket(MCPackets.C2S_ACCEPT_TELEPORTATION, C2SAcceptTeleport::new);
         }
         if (protocolVersion >= MCVersion.v1_21_2) {
             registerPacket(MCPackets.S2C_SET_HELD_SLOT, S2CSetCarriedItem::new);

@@ -417,7 +417,6 @@ public class GeneralTab extends UITab {
         this.window.advancedTab.proxy.setEnabled(state);
         if (WinRedirect.isSupported()) {
             this.window.advancedTab.tracerouteFix.setEnabled(state);
-            this.window.advancedTab.mdnsDisable.setEnabled(state);
             this.window.advancedTab.routerSpoof.setEnabled(state);
             this.window.advancedTab.blockTraffic.setEnabled(state);
             this.window.advancedTab.allowDirectConnection.setEnabled(state);

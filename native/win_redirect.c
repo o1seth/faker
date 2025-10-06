@@ -27,9 +27,10 @@
 #define MAXBUF          WINDIVERT_MTU_MAX
 #define MDNS_PRIORITY 96
 #define TTL_PRIORITY 97
-#define IP_BLOCK_PRIORITY 98
-#define PORT_FORWARD_PRIORITY 99
-#define REDIRECT_PRIORITY 100
+#define ICMP_EXCEEDED_PRIORITY 98
+#define IP_BLOCK_PRIORITY 99
+#define PORT_FORWARD_PRIORITY 100
+#define REDIRECT_PRIORITY 101
 char LOG_LEVEL = 2;
 #define DEBUG_LEVEL 1
 #define INFO_LEVEL 2
@@ -46,12 +47,28 @@ BOOL is_warn() {
 __declspec(dllexport) void set_log_level(char level) {
 	LOG_LEVEL = level;
 }
+typedef struct
+{
+	UINT8  Type;
+	UINT8  Code;
+	UINT16 Checksum;
+	UINT16 Id;
+	UINT16 Seq;
+} WINDIVERT_ICMPHDR_EX, * PWINDIVERT_ICMPHDR_EX;
+
+typedef struct
+{
+	UINT16 packet_len;
+	UINT16 delay;
+	HANDLE handle;
+	char* data;
+} D_PACKET, * PD_PACKET;
 
 typedef struct DELAYED_PACKET DELAYED_PACKET;
 
 typedef struct DELAYED_PACKET
 {
-	UINT packet_len;
+	UINT16 packet_len;
 	UINT64 send_time;
 	UINT32 Layer;
 	UINT32 IfIdx;
@@ -128,13 +145,20 @@ typedef struct
 	BOOL pause;
 	int default_packets_latency;
 	UINT8 ttl_override;
+	UINT8 ttl_paththrough;
 } REDIRECT, * PREDIRECT;
 
 typedef struct
 {
 	HANDLE forward_handle;
 	HANDLE network_handle;
-	HANDLE thread;
+	HANDLE ttl128_handle;
+	HANDLE send_handle_1;
+	HANDLE send_handle_2;
+	HANDLE thread_ttl_1;
+	HANDLE thread_ttl_2;
+	HANDLE thread_ttl_3;
+	UINT32 HopAddr;
 	unsigned char* packet;
 } TTL_FIX, * PTTL_FIX;
 
@@ -1181,6 +1205,9 @@ DWORD WINAPI redirect_in(LPVOID lpParam)
 			}
 		}
 		if (con != 0) {
+			if (ip_header->TTL <= redirect->ttl_paththrough) {
+				goto send_packet_l;
+			}
 			if (con->packets_latency > 0) {
 				HANDLE lock = con->delayed_packet_lock;
 				WaitForSingleObject(lock, INFINITE);
@@ -1240,10 +1267,10 @@ DWORD WINAPI redirect_in(LPVOID lpParam)
 					sprint_tcp_src_dst(ip_header, tcp_header, &addr, msg);
 					debug("[C - NULL] Send (%s): %s, ack %lu seq %lu", get_tcp_flag(tcp_header), msg, ntohl(tcp_header->AckNum), ntohl(tcp_header->SeqNum));
 				}
-
 			}
 		}
 
+	send_packet_l:
 		WinDivertHelperCalcChecksums(packet, packet_len, &addr, 0);
 		if (!WinDivertSend(net, packet, packet_len, NULL, &addr))
 		{
@@ -1384,7 +1411,9 @@ __declspec(dllexport) int redirect_get_latency(PREDIRECT r, char* ip, UINT16 por
 
 	UINT32 addr = ip4(ip);
 	HANDLE lock = r->connection_lock;
-
+	if (r->binded_port != port) {
+		return -1;
+	}
 	WaitForSingleObject(lock, INFINITE);
 	UINT32 connection_count = r->connection_count;
 	for (UINT32 i = 0; i < connection_count; i++) {
@@ -1512,6 +1541,23 @@ __declspec(dllexport) UINT8 redirect_get_ttl_override(PREDIRECT r) {
 		return 0;
 	}
 	return r->ttl_override;
+}
+
+__declspec(dllexport) BOOL redirect_set_ttl_paththrough(PREDIRECT r, UINT8 ttl) {
+	if (r == NULL) {
+		error("null");
+		return FALSE;
+	}
+	r->ttl_paththrough = ttl;
+	return TRUE;
+}
+
+__declspec(dllexport) UINT8 redirect_get_ttl_paththrough(PREDIRECT r) {
+	if (r == NULL) {
+		error("null");
+		return 0;
+	}
+	return r->ttl_paththrough;
 }
 
 __declspec(dllexport) BOOL redirect_add_skip_port(PREDIRECT r, UINT16 port) {
@@ -1741,11 +1787,11 @@ __declspec(dllexport) PMDNS mdns_llmnr_disable(char* local_ip) {//etc 192.168.13
 	}
 
 	if (local_ip == NULL) {
-		mdns->windivert_handle = WinDivertOpen("udp.SrcPort == 5353 or udp.SrcPort == 5355", WINDIVERT_LAYER_NETWORK, MDNS_PRIORITY, 0);
+		mdns->windivert_handle = WinDivertOpen("udp.SrcPort == 5353 or udp.SrcPort == 5355 or udp.SrcPort == 137", WINDIVERT_LAYER_NETWORK, MDNS_PRIORITY, 0);
 	}
 	else {
 		char buf[128];
-		sprintf(buf, "ip.SrcAddr == %s and (udp.SrcPort == 5353 or udp.SrcPort == 5355)", local_ip);
+		sprintf(buf, "ip.SrcAddr == %s and (udp.SrcPort == 5353 or udp.SrcPort == 5355 or udp.SrcPort == 137)", local_ip);
 		mdns->windivert_handle = WinDivertOpen(buf, WINDIVERT_LAYER_NETWORK, MDNS_PRIORITY, 0);
 	}
 
@@ -1801,12 +1847,161 @@ __declspec(dllexport) BOOL mdns_restore(PMDNS mdns) {
 	return TRUE;
 }
 
-DWORD WINAPI ttl(LPVOID lpParam)
+unsigned short calculate_checksum(unsigned short* buffer, int length) {
+	unsigned long sum = 0;
+
+	while (length > 1) {
+		sum += *buffer++;
+		length -= 2;
+	}
+
+	if (length == 1) {
+		sum += *(unsigned char*)buffer;
+	}
+
+	sum = (sum >> 16) + (sum & 0xFFFF);
+	sum += (sum >> 16);
+
+	return (unsigned short)(~sum);
+}
+
+void write_time_exceeded(char* packet, UINT32 SrcAddr, char* dest, UINT* out_packet_length) {
+
+
+	PWINDIVERT_IPHDR orig_iph = (PWINDIVERT_IPHDR*)(packet);
+
+	UINT dest_length = sizeof(WINDIVERT_IPHDR) + sizeof(WINDIVERT_ICMPHDR) + ntohs(orig_iph->Length);
+	*out_packet_length = dest_length;
+	PWINDIVERT_IPHDR ex_iph = dest;
+	memset(ex_iph, 0, sizeof(WINDIVERT_IPHDR));
+	ex_iph->HdrLength = 5;
+	ex_iph->Version = 4;
+	ex_iph->TOS = 0;
+	ex_iph->Length = htons(dest_length);
+	ex_iph->Id = htons(rand() % 65535);
+	ex_iph->FragOff0 = 0;
+	ex_iph->TTL = 64;
+	ex_iph->Protocol = IPPROTO_ICMP;
+	ex_iph->SrcAddr = SrcAddr;
+	ex_iph->DstAddr = orig_iph->SrcAddr;
+	ex_iph->Checksum = calculate_checksum((unsigned short*)ex_iph, sizeof(WINDIVERT_IPHDR));
+
+
+	PWINDIVERT_ICMPHDR time_exceeded = (PWINDIVERT_ICMPHDR)(dest + sizeof(WINDIVERT_IPHDR));
+	memset(time_exceeded, 0, sizeof(WINDIVERT_ICMPHDR));
+
+	time_exceeded->Type = 11;
+	time_exceeded->Code = 0;
+	time_exceeded->Body = 0;
+
+	time_exceeded->Checksum = calculate_checksum((unsigned short*)time_exceeded,
+		sizeof(WINDIVERT_ICMPHDR));
+
+	memcpy(dest + sizeof(WINDIVERT_IPHDR) + sizeof(PWINDIVERT_ICMPHDR), packet, ntohs(orig_iph->Length));
+}
+
+void SleepUS(long long microseconds) {
+	LARGE_INTEGER frequency, start, current;
+	QueryPerformanceFrequency(&frequency);
+	QueryPerformanceCounter(&start);
+
+	// Handle potential overflow for very long sleep times
+	long long target_ticks;
+	if (microseconds > (LLONG_MAX / frequency.QuadPart) / 1000000) {
+		// For very long durations, use simpler calculation
+		target_ticks = (microseconds / 1000000) * frequency.QuadPart;
+	}
+	else {
+		// Standard calculation with better precision
+		target_ticks = (microseconds * frequency.QuadPart) / 1000000;
+	}
+	while (1) {
+		QueryPerformanceCounter(&current);
+		long long elapsed_ticks = current.QuadPart - start.QuadPart;
+		if (elapsed_ticks >= target_ticks) {
+			break;
+		}
+		SwitchToThread();
+	}
+}
+
+DWORD WINAPI single_delayed_thread(LPVOID lpParam)
 {
-	info("Started ttl");
+	WINDIVERT_ADDRESS addr;
+	memset(&addr, 0, sizeof(addr));
+	addr.Outbound = TRUE;
+	PD_PACKET d = (PD_PACKET)lpParam;
+	SleepUS(d->delay);
+	if (!WinDivertSend(d->handle, d->data, d->packet_len, NULL, &addr))
+	{
+		warning("[C] failed to send single delayed packet (%d)", GetLastError());
+	}
+	free(d->data);
+	free(d);
+	CloseHandle(GetCurrentThread());
+}
+void send_single_delayed_packet(char* packet, UINT16 len, HANDLE handle, UINT16 delay) {
+	char* new_packet = malloc(len);
+	if (new_packet == 0) {
+		return;
+	}
+	memcpy(new_packet, packet, len);
+	PD_PACKET d = calloc(1, sizeof(D_PACKET));
+	if (d == 0) {
+		return;
+	}
+	d->packet_len = len;
+	d->handle = handle;
+	d->data = new_packet;
+	d->delay = delay;
+	CreateThread(NULL, 96 * 1024, single_delayed_thread, d, 0, 0);
+}
+DWORD WINAPI ttl_3(LPVOID lpParam)
+{
+	info("Started ttl_3");
+	PTTL_FIX ttlfix = (PTTL_FIX)lpParam;
+	HANDLE handle = ttlfix->ttl128_handle;
+	unsigned char* packet = ttlfix->packet;
+	UINT packet_len;
+	WINDIVERT_ADDRESS addr;
+	PWINDIVERT_IPHDR ip_header = 0;
+	DWORD len;
+	char msg[512];
+	BOOL next_send = TRUE;
+	while (TRUE)
+	{
+		if (!WinDivertRecv(handle, packet, MAXBUF, &packet_len, &addr))
+		{
+			DWORD err = GetLastError();
+			if (err == ERROR_NO_DATA) {
+				break;
+			}
+			warning("[C] failed to read packet (%d)", err);
+			continue;
+		}
+		WinDivertHelperParsePacket(packet, packet_len, &ip_header, NULL, NULL,
+			NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+		if (ip_header != 0) {
+			ip_header->TTL = 64;
+		}
+		WinDivertHelperCalcChecksums(packet, packet_len, &addr, 0);
+		if (!WinDivertSend(handle, packet, packet_len, NULL, &addr))
+		{
+			warning("[C] failed to send packet (%d)", GetLastError());
+			continue;
+		}
+	}
+	WinDivertShutdown(handle, WINDIVERT_SHUTDOWN_BOTH);
+	WinDivertClose(handle);
+	info("Stopped ttl_3");
+	return 0;
+}
+DWORD WINAPI ttl_2(LPVOID lpParam)
+{
+	info("Started ttl_2");
 	PTTL_FIX ttlfix = (PTTL_FIX)lpParam;
 	HANDLE handle = ttlfix->forward_handle;
-	HANDLE net = ttlfix->network_handle;
+	HANDLE send = ttlfix->send_handle_2;
 	unsigned char* packet = ttlfix->packet;
 	UINT packet_len;
 	WINDIVERT_ADDRESS addr;
@@ -1814,8 +2009,91 @@ DWORD WINAPI ttl(LPVOID lpParam)
 	PWINDIVERT_TCPHDR tcp_header = 0;
 	PWINDIVERT_UDPHDR udp_header = 0;
 	PWINDIVERT_ICMPHDR icmp_header = 0;
-	DWORD len;
 
+	DWORD len;
+	char msg[512];
+	BOOL next_send = TRUE;
+	char* new_packet = malloc(MAXBUF);
+	if (new_packet == 0) {
+		error("Failed to allocate buffer for ttl_2 packet");
+		return;
+	}
+	while (TRUE)
+	{
+		if (!WinDivertRecv(handle, packet, MAXBUF, &packet_len, &addr))
+		{
+			DWORD err = GetLastError();
+			if (err == ERROR_NO_DATA) {
+				break;
+			}
+			warning("[C] failed to read packet (%d)", err);
+			continue;
+		}
+		WinDivertHelperParsePacket(packet, packet_len, &ip_header, NULL, NULL,
+			&icmp_header, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+		if (ip_header != 0) {
+			sprint_packet(ip_header, &addr, msg);
+			if (icmp_header != 0) {
+				info("[C] Send: %s, ttl %lu %lu %lu", msg, ip_header->TTL, ntohs(icmp_header->Checksum), icmp_header->Code);
+			}
+			else {
+				info("[C] Send: %s, ttl %lu ", msg, ip_header->TTL);
+			}
+		}
+
+		if (ip_header != 0) {
+			if (ip_header->TTL == 1 && !addr.Impostor) {
+				UINT32 new_len = 0;
+				write_time_exceeded(packet, ttlfix->HopAddr, new_packet, &new_len);
+				info("Send custom response");
+				WinDivertHelperCalcChecksums(new_packet, new_len, &addr, 0);
+				send_single_delayed_packet(new_packet, new_len, send, 1000);
+				/*if (!WinDivertSend(send, new_packet, new_len, NULL, &addr))
+				{
+					warning("[C] failed to send packet (%d)", GetLastError());
+					continue;
+				}*/
+				continue;
+			}
+			ip_header->TTL += 3;
+		}
+		//print_iphdr(ip_header);
+		//print_icmphdr(icmp_header);
+		//print_addr(&addr);
+		//info("");
+		WinDivertHelperCalcChecksums(packet, packet_len, &addr, 0);
+		if (!WinDivertSend(send, packet, packet_len, NULL, &addr))
+		{
+			warning("[C] failed to send packet (%d)", GetLastError());
+			continue;
+		}
+	}
+	WinDivertShutdown(send, WINDIVERT_SHUTDOWN_BOTH);
+	WinDivertShutdown(handle, WINDIVERT_SHUTDOWN_BOTH);
+	WinDivertClose(send);
+	WinDivertClose(handle);
+	info("Stopped ttl_2");
+	return 0;
+}
+
+//icmp and SrcAddr == local ip address
+DWORD WINAPI ttl_1(LPVOID lpParam)
+{
+	info("Started ttl_1");
+	PTTL_FIX ttlfix = (PTTL_FIX)lpParam;
+	HANDLE handle = ttlfix->network_handle;
+	HANDLE send = ttlfix->send_handle_1;
+	unsigned char* packet = ttlfix->packet;
+	UINT packet_len;
+	WINDIVERT_ADDRESS addr;
+	PWINDIVERT_IPHDR ip_header = 0;
+	PWINDIVERT_TCPHDR tcp_header = 0;
+	PWINDIVERT_UDPHDR udp_header = 0;
+	PWINDIVERT_ICMPHDR icmp_header = 0;
+
+	DWORD len;
+	char msg[512];
+	BOOL next_send = TRUE;
 	while (TRUE)
 	{
 		if (!WinDivertRecv(handle, packet, MAXBUF, &packet_len, &addr))
@@ -1828,40 +2106,80 @@ DWORD WINAPI ttl(LPVOID lpParam)
 			warning("[C] failed to read packet (%d)", err);
 			continue;
 		}
-
 		WinDivertHelperParsePacket(packet, packet_len, &ip_header, NULL, NULL,
-			NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
-		if (ip_header == NULL)
-		{
-			warning("[C] failed to parse packet (%d)", GetLastError());
-			continue;
+			&icmp_header, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+		if (ip_header != 0) {
+			sprint_packet(ip_header, &addr, msg);
+			if (icmp_header != 0) {
+				info("[C] Send: %s, ttl %lu %lu %lu", msg, ip_header->TTL, ntohs(icmp_header->Checksum), icmp_header->Code);
+			}
+			else {
+				info("[C] Send: %s, ttl %lu ", msg, ip_header->TTL);
+			}
 		}
-		ip_header->TTL++;
-		if (ip_header->TTL > 1 && ip_header->TTL < 18) {
-			ip_header->TTL += 1;
-		}
-		//sprint_packet(ip_header, &addr, msg);
-		//info("[C] Send: %s, ttl %lu", msg, ip_header->TTL);
+
 		//print_iphdr(ip_header);
 		//print_icmphdr(icmp_header);
 		//print_addr(&addr);
 		//info("");
 		WinDivertHelperCalcChecksums(packet, packet_len, &addr, 0);
-		if (!WinDivertSend(net, packet, packet_len, NULL, &addr))
+		if (!WinDivertSend(send, packet, packet_len, NULL, &addr))
 		{
 			warning("[C] failed to send packet (%d)", GetLastError());
 			continue;
 		}
+
+		if (icmp_header != 0 && icmp_header->Type == 11) {
+			UINT16 ip_id = 0;
+			UINT16 exc_ip_id = 0;
+			UINT16 icmp_seq = 0;
+			for (int j = 0; j < 1; j++) {
+				for (int i = 0; i < 2; i++) {
+
+					PWINDIVERT_IPHDR exc_iph = packet + sizeof(WINDIVERT_IPHDR) + sizeof(WINDIVERT_ICMPHDR);
+					if (exc_iph->Version == 4 && exc_iph->HdrLength == 5 && exc_iph->Protocol == 1) {
+						PWINDIVERT_ICMPHDR_EX exc_icmph = (char*)exc_iph + sizeof(WINDIVERT_IPHDR);
+						if (ip_id == 0) {
+							ip_id = ntohs(ip_header->Id);
+						}
+						if (exc_ip_id == 0) {
+							exc_ip_id = ntohs(exc_iph->Id);
+						}
+						if (icmp_seq == 0) {
+							icmp_seq = ntohs(exc_icmph->Seq);
+						}
+						ip_header->Id = htons(ip_id + 1 + i);
+						exc_iph->Id = htons(exc_ip_id + 1 + i);
+						exc_iph->Checksum = calculate_checksum((unsigned short*)exc_iph, sizeof(WINDIVERT_IPHDR));
+						exc_icmph->Seq = htons(icmp_seq + 1 + i);
+						exc_icmph->Checksum = calculate_checksum((unsigned short*)exc_icmph, sizeof(WINDIVERT_ICMPHDR_EX));
+						WinDivertHelperCalcChecksums(packet, packet_len, &addr, 0);
+
+
+
+						info("Send second packet!");
+						send_single_delayed_packet(packet, packet_len, send, 2500 + i * 2500);
+						//SleepUS(500);
+						//if (!WinDivertSend(send, packet, packet_len, NULL, &addr))
+						//{
+						//	warning("[C] failed to send packet (%d)", GetLastError());
+						//	continue;
+						//}
+					}
+				}
+			}
+		}
+
 	}
-	WinDivertShutdown(net, WINDIVERT_SHUTDOWN_BOTH);
+	WinDivertShutdown(send, WINDIVERT_SHUTDOWN_BOTH);
 	WinDivertShutdown(handle, WINDIVERT_SHUTDOWN_BOTH);
-	WinDivertClose(net);
+	WinDivertClose(send);
 	WinDivertClose(handle);
-	info("Stopped ttl");
+	info("Stopped ttl_1");
 	return 0;
 }
 PTTL_FIX ttl_fix;
-__declspec(dllexport) BOOL enable_ttl_fix() {
+__declspec(dllexport) BOOL enable_ttl_fix(char* hopAddr, char* fixAddr) {
 	if (ttl_fix != 0) {
 		error("Already enabled");
 		return FALSE;
@@ -1872,34 +2190,79 @@ __declspec(dllexport) BOOL enable_ttl_fix() {
 		return FALSE;
 	}
 
-	ttl_fix->network_handle = WinDivertOpen("false", WINDIVERT_LAYER_NETWORK, TTL_PRIORITY, WINDIVERT_FLAG_DROP);
+	ttl_fix->send_handle_1 = WinDivertOpen("false", WINDIVERT_LAYER_NETWORK, TTL_PRIORITY, WINDIVERT_FLAG_DROP);
+	if (ttl_fix->send_handle_1 == INVALID_HANDLE_VALUE)
+	{
+		error("Failed to open the WinDivert device (send1) (%d)", GetLastError());
+		goto err;
+	}
+
+	ttl_fix->send_handle_2 = WinDivertOpen("false", WINDIVERT_LAYER_NETWORK, TTL_PRIORITY, WINDIVERT_FLAG_DROP);
+	if (ttl_fix->send_handle_2 == INVALID_HANDLE_VALUE)
+	{
+		error("Failed to open the WinDivert device (send2) (%d)", GetLastError());
+		goto err;
+	}
+	char filter[512];
+	sprintf(filter, "icmp.Type == 11 and ip.SrcAddr == %s", fixAddr);
+	printf("%s\n", filter);
+	fflush(stdout);
+	ttl_fix->network_handle = WinDivertOpen(filter, WINDIVERT_LAYER_NETWORK, TTL_PRIORITY, 0);
 	if (ttl_fix->network_handle == INVALID_HANDLE_VALUE)
 	{
-		error("Failed to open the WinDivert device (network) (%d)", GetLastError());
+		error("Failed to open the WinDivert device (ttl_network) (%d)", GetLastError());
 		goto err;
 	}
-
-	ttl_fix->forward_handle = WinDivertOpen("true", WINDIVERT_LAYER_NETWORK_FORWARD, TTL_PRIORITY, 0);
+	ttl_fix->forward_handle = WinDivertOpen("ip.TTL <= 24", WINDIVERT_LAYER_NETWORK_FORWARD, TTL_PRIORITY, 0);
 	if (ttl_fix->forward_handle == INVALID_HANDLE_VALUE)
 	{
-		error("Failed to open the WinDivert device (forward) (%d)", GetLastError());
+		fflush(stdout);
+		error("Failed to open the WinDivert device (ttl_forward) (%d)", GetLastError());
 		goto err;
 	}
-
+	sprintf(filter, "outbound and ip.TTL == 128 and ip.SrcAddr == %s", fixAddr);
+	printf("%s\n", filter);
+	fflush(stdout);
+	ttl_fix->ttl128_handle = WinDivertOpen(filter, WINDIVERT_LAYER_NETWORK, ICMP_EXCEEDED_PRIORITY, 0);
+	if (ttl_fix->ttl128_handle == INVALID_HANDLE_VALUE)
+	{
+		error("Failed to open the WinDivert device (ttl128) (%d)", GetLastError());
+		goto err;
+	}
+	if (hopAddr != 0) {
+		ttl_fix->HopAddr = ip4(hopAddr);
+	}
 	ttl_fix->packet = malloc(MAXBUF);
 	if (ttl_fix->packet == 0) {
 		error("Failed to allocate packet buffer");
 		goto err;
 	}
 
-	ttl_fix->thread = CreateThread(NULL, 256 * 1024, ttl, ttl_fix, 0, 0);
-	if (ttl_fix->thread == 0) {
-		error("Failed to create thread (%d)", GetLastError());
+	ttl_fix->thread_ttl_1 = CreateThread(NULL, 256 * 1024, ttl_1, ttl_fix, 0, 0);
+	if (ttl_fix->thread_ttl_1 == 0) {
+		error("Failed to create thread_ttl_1 (%d)", GetLastError());
+		goto err;
+	}
+	ttl_fix->thread_ttl_2 = CreateThread(NULL, 256 * 1024, ttl_2, ttl_fix, 0, 0);
+	if (ttl_fix->thread_ttl_2 == 0) {
+		error("Failed to create thread_ttl_2 (%d)", GetLastError());
+		goto err;
+	}
+	ttl_fix->thread_ttl_3 = CreateThread(NULL, 128 * 1024, ttl_3, ttl_fix, 0, 0);
+	if (ttl_fix->thread_ttl_3 == 0) {
+		error("Failed to create thread_ttl_3 (%d)", GetLastError());
 		goto err;
 	}
 	return TRUE;
 err:
-
+	if (ttl_fix->send_handle_1 != INVALID_HANDLE_VALUE && ttl_fix->send_handle_1 != 0)
+	{
+		WinDivertClose(ttl_fix->send_handle_1);
+	}
+	if (ttl_fix->send_handle_2 != INVALID_HANDLE_VALUE && ttl_fix->send_handle_2 != 0)
+	{
+		WinDivertClose(ttl_fix->send_handle_2);
+	}
 	if (ttl_fix->network_handle != INVALID_HANDLE_VALUE && ttl_fix->network_handle != 0)
 	{
 		WinDivertClose(ttl_fix->network_handle);
@@ -1908,13 +2271,24 @@ err:
 	{
 		WinDivertClose(ttl_fix->forward_handle);
 	}
+	if (ttl_fix->ttl128_handle != INVALID_HANDLE_VALUE && ttl_fix->ttl128_handle != 0)
+	{
+		WinDivertClose(ttl_fix->ttl128_handle);
+	}
 	if (ttl_fix->packet != 0) {
 		free(ttl_fix->packet);
 	}
-	if (ttl_fix->thread != 0) {
-		CloseHandle(ttl_fix->thread);
+	if (ttl_fix->thread_ttl_1 != 0) {
+		CloseHandle(ttl_fix->thread_ttl_1);
+	}
+	if (ttl_fix->thread_ttl_2 != 0) {
+		CloseHandle(ttl_fix->thread_ttl_2);
+	}
+	if (ttl_fix->thread_ttl_3 != 0) {
+		CloseHandle(ttl_fix->thread_ttl_3);
 	}
 	free(ttl_fix);
+	ttl_fix = 0;
 	return FALSE;
 }
 
@@ -1926,11 +2300,28 @@ __declspec(dllexport) BOOL disable_ttl_fix() {
 	if (ttl_fix->forward_handle != 0) {
 		WinDivertShutdown(ttl_fix->forward_handle, WINDIVERT_SHUTDOWN_RECV);
 	}
-	if (ttl_fix->thread != 0) {
-		WaitForSingleObject(ttl_fix->thread, INFINITE);
-		CloseHandle(ttl_fix->thread);
+	if (ttl_fix->network_handle != 0) {
+		WinDivertShutdown(ttl_fix->network_handle, WINDIVERT_SHUTDOWN_RECV);
 	}
-	free(ttl_fix->packet);
+	if (ttl_fix->ttl128_handle != 0) {
+		WinDivertShutdown(ttl_fix->ttl128_handle, WINDIVERT_SHUTDOWN_RECV);
+	}
+	if (ttl_fix->thread_ttl_1 != 0) {
+		WaitForSingleObject(ttl_fix->thread_ttl_1, INFINITE);
+		CloseHandle(ttl_fix->thread_ttl_1);
+	}
+	if (ttl_fix->thread_ttl_2 != 0) {
+		WaitForSingleObject(ttl_fix->thread_ttl_2, INFINITE);
+		CloseHandle(ttl_fix->thread_ttl_2);
+	}
+	if (ttl_fix->thread_ttl_3 != 0) {
+		WaitForSingleObject(ttl_fix->thread_ttl_3, INFINITE);
+		CloseHandle(ttl_fix->thread_ttl_3);
+	}
+	if (ttl_fix->packet != 0) {
+		free(ttl_fix->packet);
+		ttl_fix->packet = 0;
+	}
 	free(ttl_fix);
 	ttl_fix = 0;
 	return TRUE;
@@ -2706,9 +3097,19 @@ JNIEXPORT jboolean JNICALL Java_net_java_faker_WinRedirect_setTtlOverride(JNIEnv
 	return redirect_set_ttl_override(jRedirect, ttl);
 }
 
+
 JNIEXPORT jint JNICALL Java_net_java_faker_WinRedirect_getTtlOverride(JNIEnv* env, jclass cl, jlong jRedirect) {
 	return redirect_get_ttl_override(jRedirect);
 }
+
+JNIEXPORT jboolean JNICALL Java_net_java_faker_WinRedirect_setTtlPaththrough(JNIEnv* env, jclass cl, jlong jRedirect, jint ttl) {
+	return redirect_set_ttl_paththrough(jRedirect, ttl);
+}
+
+JNIEXPORT jint JNICALL Java_net_java_faker_WinRedirect_getTtlPaththrough(JNIEnv* env, jclass cl, jlong jRedirect) {
+	return redirect_get_ttl_paththrough(jRedirect);
+}
+
 
 JNIEXPORT jboolean JNICALL Java_net_java_faker_WinRedirect_redirectAddSkipPort(JNIEnv* env, jclass cl, jlong jRedirect, jint port) {
 	return redirect_add_skip_port((PREDIRECT)jRedirect, (UINT16)port);
@@ -2802,8 +3203,16 @@ JNIEXPORT jlong JNICALL Java_net_java_faker_WinRedirect_mdnsLlmnrDisable(JNIEnv*
 JNIEXPORT jboolean JNICALL Java_net_java_faker_WinRedirect_mdnsLlmnrRestore(JNIEnv* env, jclass cl, jlong jmdns) {
 	return mdns_restore((PMDNS)jmdns);
 }
-JNIEXPORT jboolean JNICALL Java_net_java_faker_WinRedirect_enableTtlFix(JNIEnv* env, jclass cl) {
-	return enable_ttl_fix();
+JNIEXPORT jboolean JNICALL Java_net_java_faker_WinRedirect_enableTtlFix(JNIEnv* env, jclass cl, jstring jhopAddr, jstring jfixAddr) {
+	if (jhopAddr == 0 || jfixAddr == 0) {
+		return 0;
+	}
+	const char* hopAddr = (*env)->GetStringUTFChars(env, jhopAddr, 0);
+	const char* fixAddr = (*env)->GetStringUTFChars(env, jfixAddr, 0);
+	jboolean ret = enable_ttl_fix(hopAddr, fixAddr);
+	(*env)->ReleaseStringUTFChars(env, jhopAddr, hopAddr);
+	(*env)->ReleaseStringUTFChars(env, jfixAddr, fixAddr);
+	return ret;
 }
 
 JNIEXPORT jboolean JNICALL Java_net_java_faker_WinRedirect_disableTtlFix(JNIEnv* env, jclass cl) {

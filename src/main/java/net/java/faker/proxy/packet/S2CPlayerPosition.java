@@ -24,46 +24,51 @@ import net.raphimc.netminecraft.constants.MCVersion;
 import net.raphimc.netminecraft.packet.Packet;
 import net.raphimc.netminecraft.packet.PacketTypes;
 
+import java.util.Random;
+
 public abstract class S2CPlayerPosition implements Packet {
+    public static int MAGIC_TELEPORT_ID = new Random().nextInt();
     public double x;
     public double y;
     public double z;
     public float yaw;
     public float pitch;
 
-    public static S2CPlayerPosition create(int protocolVersion) {
-        S2CPlayerPosition p = null;
+    public abstract int getTeleportId();
+
+    public abstract void setTeleportId(int id);
+
+    private static S2CPlayerPosition create0(int protocolVersion) {
         if (protocolVersion >= MCVersion.v1_21_2) {
-            p = new S2CPlayerPosition.v1_21_2();
+            return new S2CPlayerPosition.v1_21_2();
         } else if (protocolVersion >= MCVersion.v1_19_4) {
-            p = new S2CPlayerPosition.v1_19_4();
+            return new S2CPlayerPosition.v1_19_4();
         } else if (protocolVersion >= MCVersion.v1_17) {
-            p = new S2CPlayerPosition.v1_17();
+            return new S2CPlayerPosition.v1_17();
         } else if (protocolVersion >= MCVersion.v1_9) {
-            p = new S2CPlayerPosition.v1_9();
+            return new S2CPlayerPosition.v1_9();
         } else if (protocolVersion >= MCVersion.v1_7_2) {
-            p = new S2CPlayerPosition.v1_7_2();
+            return new S2CPlayerPosition.v1_7_2();
+        }
+        return null;
+    }
+
+    public static S2CPlayerPosition create(int protocolVersion) {
+        S2CPlayerPosition p = create0(protocolVersion);
+        if (protocolVersion >= MCVersion.v1_9 && p != null) {
+            p.setTeleportId(MAGIC_TELEPORT_ID);
         }
         return p;
     }
 
     public static S2CPlayerPosition createFrom(DualConnection connection, C2SMovePlayer move, int protocolVersion) {
-        S2CPlayerPosition p = null;
-        if (protocolVersion >= MCVersion.v1_21_2) {
-            p = new S2CPlayerPosition.v1_21_2();
-        } else if (protocolVersion >= MCVersion.v1_19_4) {
-            p = new S2CPlayerPosition.v1_19_4();
-        } else if (protocolVersion >= MCVersion.v1_17) {
-            p = new S2CPlayerPosition.v1_17();
-        } else if (protocolVersion >= MCVersion.v1_9) {
-            p = new S2CPlayerPosition.v1_9();
-        } else if (protocolVersion >= MCVersion.v1_7_2) {
-            p = new S2CPlayerPosition.v1_7_2();
-        }
+        S2CPlayerPosition p = create0(protocolVersion);
         if (p == null) {
             return null;
         }
-
+        if (protocolVersion >= MCVersion.v1_9) {
+            p.setTeleportId(MAGIC_TELEPORT_ID);
+        }
         p.x = move.getX(connection.playerX);
         p.y = move.getY(connection.playerY);
         p.z = move.getZ(connection.playerZ);
@@ -100,6 +105,16 @@ public abstract class S2CPlayerPosition implements Packet {
             byteBuf.writeFloat(this.pitch);
             byteBuf.writeByte(flags);
         }
+
+        @Override
+        public int getTeleportId() {
+            throw new RuntimeException("teleportId doesn't exists on v1_7_2");
+        }
+
+        @Override
+        public void setTeleportId(int id) {
+            throw new RuntimeException("teleportId doesn't exists on v1_7_2");
+        }
     }
 
     public static class v1_9 extends S2CPlayerPosition {
@@ -127,6 +142,21 @@ public abstract class S2CPlayerPosition implements Packet {
             byteBuf.writeFloat(this.pitch);
             byteBuf.writeByte(this.flags);
             PacketTypes.writeVarInt(byteBuf, this.teleportId);
+        }
+
+        @Override
+        public String toString() {
+            return "S2CPlayerPosition.v1_9 " + teleportId;
+        }
+
+        @Override
+        public int getTeleportId() {
+            return this.teleportId;
+        }
+
+        @Override
+        public void setTeleportId(int teleportId) {
+            this.teleportId = teleportId;
         }
     }
 
@@ -158,6 +188,21 @@ public abstract class S2CPlayerPosition implements Packet {
             byteBuf.writeByte(this.flags);
             PacketTypes.writeVarInt(byteBuf, this.teleportId);
             byteBuf.writeBoolean(this.dismountVehicle);
+        }
+
+        @Override
+        public String toString() {
+            return "S2CPlayerPosition.v1_17 " + teleportId;
+        }
+
+        @Override
+        public int getTeleportId() {
+            return this.teleportId;
+        }
+
+        @Override
+        public void setTeleportId(int teleportId) {
+            this.teleportId = teleportId;
         }
     }
 
@@ -204,5 +249,19 @@ public abstract class S2CPlayerPosition implements Packet {
             byteBuf.writeInt(this.flags);
         }
 
+        @Override
+        public String toString() {
+            return "S2CPlayerPosition.v1_21_2 " + teleportId;
+        }
+
+        @Override
+        public int getTeleportId() {
+            return this.teleportId;
+        }
+
+        @Override
+        public void setTeleportId(int teleportId) {
+            this.teleportId = teleportId;
+        }
     }
 }

@@ -28,14 +28,13 @@ import net.java.faker.Proxy;
 import net.java.faker.WinRedirect;
 import net.java.faker.auth.Account;
 import net.java.faker.proxy.PacketRegistry;
-import net.java.faker.proxy.packet.C2SAbstractResponse;
-import net.java.faker.proxy.packet.S2CAbstractRequest;
+import net.java.faker.proxy.packet.*;
 import net.java.faker.proxy.packet.keepalive.C2SAbstractKeepAlive;
 import net.java.faker.proxy.packet.pingpong.C2SAbstractPong;
-import net.java.faker.proxy.packet.C2SMovePlayer;
 import net.java.faker.proxy.packethandler.PacketHandler;
 import net.java.faker.proxy.util.CloseAndReturn;
 import net.java.faker.proxy.util.LatencyMode;
+import net.java.faker.proxy.util.PacketUtils;
 import net.java.faker.util.logging.Logger;
 import net.lenni0451.mcstructs.text.components.StringComponent;
 import net.raphimc.netminecraft.constants.ConnectionState;
@@ -143,9 +142,6 @@ public class ProxyConnection extends NetClient {
         String ip = remote.getAddress().getHostAddress();
         int port = remote.getPort();
         int latency = WinRedirect.getRedirectLatency(Proxy.forward_redirect, ip, port);
-        if (latency == -1) {
-            latency = WinRedirect.getRedirectLatency(Proxy.redirect, ip, port);
-        }
         if (latency > 0) {
             this.latencyMode = LatencyMode.AUTO;
             this.latency = latency;
@@ -268,6 +264,12 @@ public class ProxyConnection extends NetClient {
         if (!Proxy.getConfig().newPingCorrection.get()) {
             return false;
         }
+        if (packet instanceof C2SAcceptTeleport tp) {
+            if (tp.id == S2CPlayerPosition.MAGIC_TELEPORT_ID) {
+                Logger.raw("Skip MAGIC TELEPORT " + tp.id);
+                return true;
+            }
+        }
         if (packet instanceof C2SAbstractResponse response) {
             synchronized (dualConnection.pongs) {
                 int num = -1;
@@ -278,7 +280,10 @@ public class ProxyConnection extends NetClient {
                 }
 
                 int index = dualConnection.getPongIndexByNum(num, response);
-
+                if (index == -1) {
+                    Logger.error("Not found index for: " + num);
+                    return true;
+                }
                 DualConnection.Pong pong = dualConnection.pongs.get(index);
                 if (pong == null) {
                     Logger.error("Pong is null for " + packet);
@@ -289,7 +294,7 @@ public class ProxyConnection extends NetClient {
                     Logger.error("Not equals pong packets: " + p + " != " + packet + " " + num);
                 }
                 if (pong.sent) {
-//                    Logger.raw("Skip sent packet " + pong.packet);
+                    Logger.raw("Skip sent packet " + pong.packet);
                     return true;
                 }
                 pong.sent = true;
@@ -297,7 +302,7 @@ public class ProxyConnection extends NetClient {
                     pong = dualConnection.pongs.get(i);
                     if (!pong.sent) {
                         //send unsent packets
-//                        Logger.raw("Send unsent packet " + pong.packet);
+                        Logger.raw("Send unsent packet " + pong.packet);
                         pong.sent = true;
                         sendServer(pong.packet);
                     }

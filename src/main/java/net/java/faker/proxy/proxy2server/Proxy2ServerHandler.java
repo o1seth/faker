@@ -36,12 +36,16 @@ import net.java.faker.proxy.util.PacketUtils;
 import net.java.faker.proxy.util.TransferDataHolder;
 import net.java.faker.proxy.util.chat.ChatSession1_19_3;
 import net.java.faker.util.logging.Logger;
-import net.raphimc.netminecraft.constants.*;
+import net.raphimc.netminecraft.constants.ConnectionState;
+import net.raphimc.netminecraft.constants.MCPackets;
+import net.raphimc.netminecraft.constants.MCPipeline;
+import net.raphimc.netminecraft.constants.MCVersion;
 import net.raphimc.netminecraft.netty.crypto.AESEncryption;
 import net.raphimc.netminecraft.netty.crypto.CryptUtil;
 import net.raphimc.netminecraft.packet.Packet;
 import net.raphimc.netminecraft.packet.PacketTypes;
 import net.raphimc.netminecraft.packet.UnknownPacket;
+import net.raphimc.netminecraft.packet.impl.common.S2CCustomPayloadPacket;
 import net.raphimc.netminecraft.packet.impl.common.S2CDisconnectPacket;
 import net.raphimc.netminecraft.packet.impl.common.S2CTransferPacket;
 import net.raphimc.netminecraft.packet.impl.configuration.S2CConfigFinishConfigurationPacket;
@@ -130,7 +134,7 @@ public class Proxy2ServerHandler extends SimpleChannelInboundHandler<Packet> {
 //            PacketRegistry reg = (PacketRegistry) ctx.channel().attr(MCPipeline.PACKET_REGISTRY_ATTRIBUTE_KEY).get();
 //            final MCPackets packetType = MCPackets.getPacket(reg.getConnectionState(), PacketDirection.CLIENTBOUND, reg.getProtocolVersion(), p.packetId);
 //            Logger.raw("IN  " + "Unknown " + p.packetId + " " + packetType);
-//        } else {
+//        } else  {
 //            Logger.raw("IN  " + PacketUtils.toString(packet));
 //        }
 
@@ -180,13 +184,20 @@ public class Proxy2ServerHandler extends SimpleChannelInboundHandler<Packet> {
                 if (!mainConnection.isClosed()) {
                     mainConnection.sendToClient(packet, listeners);
                 }
-                if (!sideConnection.isClosed()) {
+                if (!sideConnection.isClosed() && !isVoiceChatPacket(packet)) {
                     sideConnection.sendToClient(packet);
                 }
             } else {
                 mainConnection.sendToClient(packet, listeners);
             }
         }
+    }
+
+    private boolean isVoiceChatPacket(Packet packet) {
+        if (packet instanceof S2CCustomPayloadPacket customPayloadPacket) {
+            return customPayloadPacket.channel.contains("voicechat");
+        }
+        return false;
     }
 
     private void handleS2CLoginHello(S2CLoginHelloPacket loginHelloPacket) {

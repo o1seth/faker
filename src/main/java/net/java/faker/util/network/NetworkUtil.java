@@ -21,13 +21,19 @@ package net.java.faker.util.network;
 import net.java.faker.proxy.util.ExceptionUtil;
 import net.java.faker.proxy.util.chat.Ints;
 import net.java.faker.util.Sys;
+import net.java.faker.util.logging.Logger;
 
 import javax.annotation.Nonnull;
 import java.io.*;
-import java.net.*;
+import java.net.Inet4Address;
+import java.net.InetAddress;
+import java.net.InterfaceAddress;
+import java.net.Socket;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class NetworkUtil {
     private static final String[] masks = new String[33];
@@ -770,4 +776,39 @@ public class NetworkUtil {
         return null;
     }
 
+    public static String getLastHopFromTracert(String host, int maxHops) {
+        try {
+            List<String> command = new ArrayList<>();
+            command.add("tracert");
+            command.add("-h");
+            command.add(String.valueOf(maxHops));
+            command.add("-d");
+            command.add(host);
+
+            Process process = new ProcessBuilder(command).start();
+
+            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+
+            String line;
+            String lastHop = null;
+            Pattern hopPattern = Pattern.compile("\\s*\\d+\\s+\\S+\\s+\\[?(\\d+\\.\\d+\\.\\d+\\.\\d+)\\]?");
+
+            while ((line = reader.readLine()) != null) {
+                Matcher matcher = hopPattern.matcher(line);
+                if (matcher.find()) {
+                    lastHop = matcher.group(1);
+                }
+            }
+
+            // Wait for process to complete
+            int exitCode = process.waitFor();
+
+            return lastHop;
+
+        } catch (Throwable e) {
+            System.err.println("Error executing tracert: " + e.getMessage());
+            e.printStackTrace();
+            return null;
+        }
+    }
 }

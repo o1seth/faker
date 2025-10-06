@@ -55,10 +55,11 @@ import java.net.*;
 import java.util.ArrayList;
 import java.util.Hashtable;
 import java.util.List;
+import java.util.Random;
 import java.util.function.Consumer;
 
 public class Proxy {
-    public static final String VERSION = "1.5";
+    public static final String VERSION = "1.6";
     public static InetSocketAddress proxyAddress = new InetSocketAddress("127.0.0.1", 25565);
     public static InetSocketAddress transferAddress;
     private static URI backendProxy;
@@ -91,6 +92,7 @@ public class Proxy {
     private static long routerPortForward;
     private static HttpHostSpoofer httpHostSpoofer;
     private static long blockTraffic;
+    private static String HOP_2;
 
     private static void addPortsToFilter(StringBuilder filter, int[] skipTcpPorts, int[] skipUdpPorts) {
         if (skipTcpPorts != null && skipTcpPorts.length > 0 || skipUdpPorts != null && skipUdpPorts.length > 0) {
@@ -151,6 +153,7 @@ public class Proxy {
         }
         Window.getInstance();
         registerEvents();
+        initHop2();
     }
 
     private static void registerEvents() {
@@ -161,6 +164,17 @@ public class Proxy {
                 if (event.getConnection().isRedirected()) {
                     InetAddress realSrc = event.getConnection().getRealSrcAddress().getAddress();
                     if (realSrc instanceof Inet4Address ipv4) {
+                        try {
+                            if (getConfig().tracerouteFix.get() && !isTtlFixEnabled) {
+                                if (!NetworkUtil.isFromNetworkWithInternetAccess(ipv4)) {
+                                    String gateway = NetworkUtil.getStart(ipv4, 24).getHostAddress();
+                                    Logger.info("Enabling ttl fix when connect: " + getHop2() + " " + gateway);
+                                    enableTtlFix(getHop2(), gateway);
+                                }
+                            }
+                        } catch (Exception ex) {
+                            Logger.error("Failed to enable ttl fix when connect: " + ex.getMessage());
+                        }
                         if (getConfig().blockTraffic.get() && blockTraffic == 0) {
                             if (!NetworkUtil.isFromNetworkWithInternetAccess(ipv4)) {
                                 startBlockTraffic(ipv4);
@@ -223,14 +237,14 @@ public class Proxy {
             }
 
             startRedirect();
-
-            if (Proxy.getConfig().tracerouteFix.get()) {
-                enableTtlFix();
+            try {
+                if (Proxy.getConfig().tracerouteFix.get() && targetAdapter != null && targetAdapter != NetworkInterface.NULL) {
+                    Logger.info("Enabling ttl fix " + getHop2() + " " + targetAdapter.getFirstIpv4Address().getHostAddress());
+                    enableTtlFix(getHop2(), targetAdapter.getFirstIpv4Address().getHostAddress());
+                }
+            } catch (Exception ex) {
+                Logger.error("Failed to enable ttl fix: " + ex.getMessage());
             }
-            if (Proxy.getConfig().mdnsDisable.get()) {
-                mdnsDisable();
-            }
-
             event(new ProxyStateEvent(ProxyStateEvent.State.STARTED));
 //            currentProxyServer.getChannel().closeFuture().syncUninterruptibly();
         } catch (Throwable e) {
@@ -258,9 +272,7 @@ public class Proxy {
             if (Proxy.getConfig().tracerouteFix.get()) {
                 disableTtlFix();
             }
-            if (Proxy.getConfig().mdnsDisable.get()) {
-                mdnsRestore();
-            }
+
             if (Proxy.getConfig().routerSpoof.get()) {
                 stopPortForward();
             }
@@ -393,14 +405,14 @@ public class Proxy {
         event(new RedirectStateChangeEvent(RedirectStateChangeEvent.State.RESUMED));
     }
 
-    private static void mdnsDisable() {
+    public static void mdnsDisable() {
         if (!WinRedirect.isSupported()) {
             return;
         }
         mdns = WinRedirect.mdnsLlmnrDisable(null);
     }
 
-    private static void mdnsRestore() {
+    public static void mdnsRestore() {
         if (!WinRedirect.isSupported()) {
             return;
         }
@@ -410,11 +422,16 @@ public class Proxy {
         }
     }
 
-    private static void enableTtlFix() {
+    private static volatile boolean isTtlFixEnabled;
+
+    private static void enableTtlFix(String hopAddr, String fixAddr) {
         if (!WinRedirect.isSupported()) {
             return;
         }
-        WinRedirect.enableTtlFix();
+        if (!WinRedirect.enableTtlFix(hopAddr, fixAddr)) {
+            throw new RuntimeException(WinRedirect.getError());
+        }
+        isTtlFixEnabled = true;
     }
 
     private static void disableTtlFix() {
@@ -422,6 +439,7 @@ public class Proxy {
             return;
         }
         WinRedirect.disableTtlFix();
+        isTtlFixEnabled = false;
     }
 
     private static void stopRedirect() {
@@ -764,5 +782,29 @@ public class Proxy {
             fakerDirectory = dir.getAbsolutePath();
         }
         return fakerDirectory;
+    }
+
+    private static String getHop2() {
+        if (HOP_2 != null) {
+            return HOP_2;
+        }
+        Random r = new Random();
+        HOP_2 = "";
+        HOP_2 += r.nextInt(20) + 1 + ".";
+        HOP_2 += r.nextInt(128) + ".";
+        HOP_2 += r.nextInt(255) + ".";
+        HOP_2 += r.nextInt(255);
+        return HOP_2;
+    }
+
+    public static void initHop2() {
+        if (HOP_2 != null) {
+            return;
+        }
+        if (Sys.isWindows()) {
+            new Thread(() -> {
+                HOP_2 = NetworkUtil.getLastHopFromTracert("1.1.1.1", 2);
+            }).start();
+        }
     }
 }
