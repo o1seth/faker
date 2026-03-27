@@ -96,13 +96,11 @@ public class Config {
                 Logger.error("Failed to delete config");
             }
         } else {
-            try {
-                BufferedWriter writer = new BufferedWriter(new FileWriter(file));
-                JsonWriter jsonWriter = new JsonWriter(writer);
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(file));
+                 JsonWriter jsonWriter = new JsonWriter(writer)) {
                 jsonWriter.setStrictness(Strictness.LENIENT);
                 Streams.write(json, jsonWriter);
-                writer.close();
-            } catch (Exception e) {
+            } catch (IOException e) {
                 Logger.error("Failed to save config " + e.getMessage());
             }
         }

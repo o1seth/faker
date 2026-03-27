@@ -110,9 +110,18 @@ public class DualConnection {
         }
         if (WinRedirect.isSupported()) {
             this.latencyChecker = new LatencyChecker();
+            this.latencyChecker.setDaemon(true);
+            this.latencyChecker.setName("faker-latency-checker-" + Integer.toUnsignedString(mainConnection.hashCode(), 16));
             this.latencyChecker.start();
         }
         this.connectTime = mainConnection.getConnectTime();
+    }
+
+    public synchronized void stopLatencyChecker() {
+        if (this.latencyChecker != null) {
+            this.latencyChecker.interrupt();
+            this.latencyChecker = null;
+        }
     }
 
     public boolean isP2sEncrypted() {
@@ -212,7 +221,7 @@ public class DualConnection {
                 C2SAbstractPong lastSentPong = controller.getLastSentPong();
                 List<C2SAbstractPong> notSentPongs = follower.getPongPacketsAfter(lastSentPong);
                 for (C2SAbstractPong pong : notSentPongs) {
-                    controller.getChannel().writeAndFlush(pong).syncUninterruptibly();
+                    controller.getChannel().writeAndFlush(pong);
                 }
                 this.skipPongs = controller.getPongPacketsAfter(follower.getLastSentPong());
             }
@@ -571,8 +580,8 @@ public class DualConnection {
                 }
                 try {
                     Thread.sleep(750);
-                } catch (Exception ignored) {
-
+                } catch (InterruptedException ignored) {
+                    interrupt();
                 }
                 count++;
             }

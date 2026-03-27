@@ -48,6 +48,8 @@ import net.raphimc.netminecraft.packet.impl.handshaking.C2SHandshakingClientInte
 import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.nio.channels.UnresolvedAddressException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.IntConsumer;
@@ -56,7 +58,7 @@ import java.util.function.Supplier;
 public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
     public static final AttributeKey<Client2ProxyHandler> CLIENT_2_PROXY_ATTRIBUTE_KEY = AttributeKey.valueOf("proxy_connection");
     private ProxyConnection proxyConnection;
-    public static final Object transferLocker = new Object();
+    private static volatile CompletableFuture<Void> transferReadyFuture = new CompletableFuture<>();
     private static long lastConnectTime;
 
     @Override
@@ -104,13 +106,15 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
         Logger.u_info("disconnect", this.proxyConnection, "Connection closed (client->proxy)!");
         DualConnection dualConnection = this.proxyConnection.dualConnection;
         if (dualConnection != null) {
+            dualConnection.stopLatencyChecker();
 
             if (dualConnection.isClosed()) {
                 Proxy.dualConnection = null;
                 Logger.info("Dual connection closed");
                 try {
                     this.proxyConnection.getChannel().close();
-                } catch (Throwable ignored) {
+                } catch (Throwable t) {
+                    Logger.error("Failed to close backend channel after dual disconnect", t);
                 }
             } else {
                 dualConnection.swapController();
@@ -119,7 +123,8 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
         } else {
             try {
                 this.proxyConnection.getChannel().close();
-            } catch (Throwable ignored) {
+            } catch (Throwable t) {
+                Logger.error("Failed to close backend channel after client disconnect", t);
             }
         }
         Proxy.event(new DisconnectEvent(this.proxyConnection));
@@ -181,13 +186,12 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
             InetSocketAddress connectAddress = this.proxyConnection.getRealDstAddress();
             Proxy.connectedAddresses.add(connectAddress);
             proxyConnection.connectToServer(connectAddress, addSkipPort).addListeners(removeSkipPort, (ThrowingChannelFutureListener) f -> {
-                if (!f.isSuccess()) {
-                    if (f.channel().remoteAddress() instanceof InetSocketAddress isa) {
-                        Proxy.connectedAddresses.remove(isa);
-                    }
+                if (f.isSuccess()) {
+                    proxyConnection.setForwardMode();
+                } else if (f.channel().remoteAddress() instanceof InetSocketAddress isa) {
+                    Proxy.connectedAddresses.remove(isa);
                 }
-            }).syncUninterruptibly();
-            proxyConnection.setForwardMode();
+            });
 
         } else {
             ctx.close();
@@ -234,11 +238,16 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
                     if (f.channel().remoteAddress() instanceof InetSocketAddress isa) {
                         Proxy.connectedAddresses.remove(isa);
                     }
+                    return;
                 }
-            }).syncUninterruptibly();
-
-            proxyConnection.getChannel().writeAndFlush(handshake).syncUninterruptibly();
-            proxyConnection.setForwardMode();
+                proxyConnection.getChannel().writeAndFlush(handshake).addListener((ChannelFutureListener) wf -> {
+                    if (wf.isSuccess()) {
+                        proxyConnection.setForwardMode();
+                    } else {
+                        Logger.error("Failed to send forwarding handshake", wf.cause());
+                    }
+                });
+            });
             return false;
         }
         return true;
@@ -286,7 +295,7 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
         }
         final List<ChannelFutureListener> listeners = new ArrayList<>(1);
         listeners.add(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
-        synchronized (Proxy.ioLocker) {
+        synchronized (this.proxyConnection.getIOLocker()) {
             for (PacketHandler packetHandler : this.proxyConnection.getPacketHandlers()) {
                 if (!packetHandler.handleC2P(packet, listeners)) {
                     return;
@@ -316,14 +325,8 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
             } else {
                 Logger.u_err("side " + Integer.toUnsignedString(proxyConnection.hashCode(), 16), this.proxyConnection, "handshake");
                 if (packet.intendedState == IntendedState.TRANSFER && dualConnection.getMainConnection().getConnectTime() < 0) {
-                    synchronized (transferLocker) {
-                        Logger.raw("[SIDE] Transfer wait for main connection....");
-                        try {
-                            transferLocker.wait(1500);
-                        } catch (InterruptedException e) {
-                            throw new RuntimeException(e);
-                        }
-                    }
+                    Logger.raw("[SIDE] Transfer wait for main connection....");
+                    transferReadyFuture.orTimeout(1500, TimeUnit.MILLISECONDS).exceptionally(ex -> null).join();
                 }
                 this.proxyConnection.setController(false);
                 this.proxyConnection.setChannel(Proxy.dualConnection.getMainConnection());
@@ -377,7 +380,8 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
         if (connectAddress == null) {
             try {
                 this.proxyConnection.getC2P().close();
-            } catch (Throwable ignored) {
+            } catch (Throwable t) {
+                Logger.error("Failed to close client channel when connectAddress is null", t);
             }
             return;
         }
@@ -416,16 +420,11 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
             this.proxyConnection.setP2sConnectionState(intendedState.getConnectionState());
             long curTime = System.currentTimeMillis();
             if (curTime - lastConnectTime < 1000 && Proxy.getConfig().onlineMode.get()) {
-                new Thread(() -> {
-                    try {
-                        int wait = (int) (1000 - (curTime - lastConnectTime));
-                        Logger.u_info("connect", this.proxyConnection, "[SIDE] wait for " + wait + " ms");
-                        Thread.sleep(wait);
-                    } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
-                    }
+                int wait = (int) (1000 - (curTime - lastConnectTime));
+                Logger.u_info("connect", this.proxyConnection, "[SIDE] wait for " + wait + " ms");
+                this.proxyConnection.getC2P().eventLoop().schedule(() -> {
                     ChannelUtil.restoreAutoRead(proxyConnection.getC2P());
-                }).start();
+                }, wait, TimeUnit.MILLISECONDS);
             } else {
                 ChannelUtil.restoreAutoRead(proxyConnection.getC2P());
             }
@@ -456,9 +455,8 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
         lastConnectTime = System.currentTimeMillis();
         this.proxyConnection.connectToServer(connectAddress, addSkipPort).addListeners(removeSkipPort, (ThrowingChannelFutureListener) f -> {
             if (f.isSuccess()) {
-                synchronized (transferLocker) {
-                    transferLocker.notifyAll();
-                }
+                transferReadyFuture.complete(null);
+                transferReadyFuture = new CompletableFuture<>();
                 f.channel().eventLoop().submit(() -> { // Reschedule so the packets get sent after the channel is fully initialized and active
                     final long endTime = System.currentTimeMillis();
                     int connectTime = (int) (endTime - startTime);

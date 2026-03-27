@@ -56,6 +56,10 @@ import java.util.ArrayList;
 import java.util.Hashtable;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 public class Proxy {
@@ -93,6 +97,14 @@ public class Proxy {
     private static HttpHostSpoofer httpHostSpoofer;
     private static long blockTraffic;
     private static String HOP_2;
+    private static final ScheduledExecutorService ASYNC_EXECUTOR = Executors.newSingleThreadScheduledExecutor(new ThreadFactory() {
+        @Override
+        public Thread newThread(Runnable r) {
+            Thread t = new Thread(r, "faker-async");
+            t.setDaemon(true);
+            return t;
+        }
+    });
 
     private static void addPortsToFilter(StringBuilder filter, int[] skipTcpPorts, int[] skipUdpPorts) {
         if (skipTcpPorts != null && skipTcpPorts.length > 0 || skipUdpPorts != null && skipUdpPorts.length > 0) {
@@ -710,14 +722,7 @@ public class Proxy {
     public static void stopTransferRedirectDelay(int delay) {
         final long t_forward_redirect = transfer_forward_redirect;
         final long t_redirect = transfer_redirect;
-        new Thread(() -> {
-            try {
-                Thread.sleep(delay);
-                stopTransferRedirect(t_forward_redirect, t_redirect);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-        }).start();
+        ASYNC_EXECUTOR.schedule(() -> stopTransferRedirect(t_forward_redirect, t_redirect), delay, TimeUnit.MILLISECONDS);
         transfer_forward_redirect = 0;
         transfer_redirect = 0;
     }
@@ -802,9 +807,7 @@ public class Proxy {
             return;
         }
         if (Sys.isWindows()) {
-            new Thread(() -> {
-                HOP_2 = NetworkUtil.getLastHopFromTracert("1.1.1.1", 2);
-            }).start();
+            ASYNC_EXECUTOR.execute(() -> HOP_2 = NetworkUtil.getLastHopFromTracert("1.1.1.1", 2));
         }
     }
 }

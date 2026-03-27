@@ -22,32 +22,64 @@ import io.netty.channel.Channel;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 public class TransferDataHolder {
 
-//    private static final Map<InetAddress, InetSocketAddress> TEMP_REDIRECTS = CacheBuilder.newBuilder().expireAfterWrite(1, TimeUnit.MINUTES).<InetAddress, InetSocketAddress>build().asMap();
+    private static final long REDIRECT_TTL_MILLIS = TimeUnit.MINUTES.toMillis(1);
+    private static final Map<InetAddress, Entry> TEMP_REDIRECTS = new ConcurrentHashMap<>();
 
-    private static final Map<InetAddress, InetSocketAddress> TEMP_REDIRECTS = new HashMap<>();
+    private static final class Entry {
+        final InetSocketAddress address;
+        final long expiresAt;
+
+        private Entry(InetSocketAddress address, long expiresAt) {
+            this.address = address;
+            this.expiresAt = expiresAt;
+        }
+    }
 
     public static void addTempRedirect(final Channel channel, final InetSocketAddress redirect) {
-        TEMP_REDIRECTS.put(getChannelAddress(channel), redirect);
+        cleanupExpired();
+        TEMP_REDIRECTS.put(getChannelAddress(channel), new Entry(redirect, System.currentTimeMillis() + REDIRECT_TTL_MILLIS));
     }
 
 
     public static InetSocketAddress removeTempRedirect(final Channel channel) {
-        return TEMP_REDIRECTS.remove(getChannelAddress(channel));
+        final Entry removed = TEMP_REDIRECTS.remove(getChannelAddress(channel));
+        if (removed == null) {
+            return null;
+        }
+        if (removed.expiresAt < System.currentTimeMillis()) {
+            return null;
+        }
+        return removed.address;
     }
 
 
     public static boolean hasTempRedirect(final Channel channel) {
-        return TEMP_REDIRECTS.containsKey(getChannelAddress(channel));
+        cleanupExpired();
+        final Entry entry = TEMP_REDIRECTS.get(getChannelAddress(channel));
+        if (entry == null) {
+            return false;
+        }
+        if (entry.expiresAt < System.currentTimeMillis()) {
+            TEMP_REDIRECTS.remove(getChannelAddress(channel), entry);
+            return false;
+        }
+        return true;
     }
 
 
     private static InetAddress getChannelAddress(final Channel channel) {
         return ((InetSocketAddress) channel.remoteAddress()).getAddress();
+    }
+
+    private static void cleanupExpired() {
+        final long now = System.currentTimeMillis();
+        TEMP_REDIRECTS.entrySet().removeIf(e -> e.getValue().expiresAt < now);
     }
 
 }

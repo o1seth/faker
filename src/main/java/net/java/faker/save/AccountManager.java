@@ -76,13 +76,11 @@ public class AccountManager {
                 Logger.error("Failed to delete accounts");
             }
         } else {
-            try {
-                BufferedWriter writer = new BufferedWriter(new FileWriter(file));
-                JsonWriter jsonWriter = new JsonWriter(writer);
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(file));
+                 JsonWriter jsonWriter = new JsonWriter(writer)) {
                 jsonWriter.setStrictness(Strictness.LENIENT);
                 Streams.write(array, jsonWriter);
-                writer.close();
-            } catch (Exception e) {
+            } catch (IOException e) {
                 Logger.error("Failed to save accounts " + e.getMessage());
             }
         }

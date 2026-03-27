@@ -60,6 +60,7 @@ import java.net.InetSocketAddress;
 import java.security.PublicKey;
 import java.util.ArrayList;
 import java.util.List;
+import java.nio.ByteBuffer;
 
 public class Proxy2ServerHandler extends SimpleChannelInboundHandler<Packet> {
 
@@ -87,15 +88,18 @@ public class Proxy2ServerHandler extends SimpleChannelInboundHandler<Packet> {
         Logger.u_info("disconnect", this.proxyConnection, "Connection closed (proxy->server)");
         if (proxyConnection.dualConnection != null) {
             ProxyConnection sideConnection = proxyConnection.dualConnection.getSideConnection();
+            proxyConnection.dualConnection.stopLatencyChecker();
             Proxy.dualConnection = null;
             try {
                 sideConnection.getC2P().close();
-            } catch (Throwable ignored) {
+            } catch (Throwable t) {
+                Logger.error("Failed to close side client channel on backend disconnect", t);
             }
         }
         try {
             this.proxyConnection.getC2P().close();
-        } catch (Throwable ignored) {
+        } catch (Throwable t) {
+            Logger.error("Failed to close client channel on backend disconnect", t);
         }
     }
 
@@ -146,7 +150,7 @@ public class Proxy2ServerHandler extends SimpleChannelInboundHandler<Packet> {
             handleS2CLoginHello(p);
             return;
         }
-        synchronized (Proxy.ioLocker) {
+        synchronized (mainConnection.getIOLocker()) {
             final List<ChannelFutureListener> listeners = new ArrayList<>(2);
             listeners.add(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
 
@@ -334,7 +338,7 @@ public class Proxy2ServerHandler extends SimpleChannelInboundHandler<Packet> {
                     dualConnection.swapController();
                 }
 
-                dualConnection.entityId = Unpooled.wrappedBuffer(packet.data).readInt();
+                dualConnection.entityId = ByteBuffer.wrap(packet.data).getInt();
                 Logger.info("Join game, playerID = " + dualConnection.entityId);
                 if (dualConnection.isP2sEncrypted() && dualConnection.getChatSession1_19_3() != null) {
                     final ChatSession1_19_3 chatSession = dualConnection.getChatSession1_19_3();

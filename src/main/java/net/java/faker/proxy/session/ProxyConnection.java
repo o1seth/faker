@@ -166,15 +166,27 @@ public class ProxyConnection extends NetClient {
         if (this.channelFuture == null) {
             this.initialize(TransportType.getBest(serverAddress), new Bootstrap());
         }
-
-        this.getChannel().bind(new InetSocketAddress(0)).syncUninterruptibly();
-        InetSocketAddress localAddress = (InetSocketAddress) this.getChannel().localAddress();
-        int port = localAddress.getPort();
-        if (onBind != null) {
-            onBind.accept(port);
-        }
-
-        return this.getChannel().connect(serverAddress);
+        final Channel channel = this.getChannel();
+        final ChannelPromise result = channel.newPromise();
+        channel.bind(new InetSocketAddress(0)).addListener((ChannelFutureListener) bindFuture -> {
+            if (!bindFuture.isSuccess()) {
+                result.setFailure(bindFuture.cause());
+                return;
+            }
+            InetSocketAddress localAddress = (InetSocketAddress) channel.localAddress();
+            int port = localAddress.getPort();
+            if (onBind != null) {
+                onBind.accept(port);
+            }
+            channel.connect(serverAddress).addListener((ChannelFutureListener) connectFuture -> {
+                if (connectFuture.isSuccess()) {
+                    result.setSuccess();
+                } else {
+                    result.setFailure(connectFuture.cause());
+                }
+            });
+        });
+        return result;
     }
 
     public Channel getC2P() {
@@ -183,6 +195,10 @@ public class ProxyConnection extends NetClient {
 
     public List<PacketHandler> getPacketHandlers() {
         return this.packetHandlers;
+    }
+
+    public Object getIOLocker() {
+        return controllerLocker;
     }
 
     public <T> T getPacketHandler(final Class<T> packetHandlerType) {
@@ -380,7 +396,10 @@ public class ProxyConnection extends NetClient {
             if (listeners == null) {
                 sendServer(packet);
             } else {
-                sendServer(packet).addListeners(listeners.toArray(new ChannelFutureListener[listeners.size()]));
+                ChannelFuture future = sendServer(packet);
+                for (ChannelFutureListener listener : listeners) {
+                    future.addListener(listener);
+                }
             }
         }
     }
@@ -463,7 +482,10 @@ public class ProxyConnection extends NetClient {
         if (listeners == null) {
             sendClient(packet);
         } else {
-            sendClient(packet).addListeners(listeners.toArray(new ChannelFutureListener[listeners.size()]));
+            ChannelFuture future = sendClient(packet);
+            for (ChannelFutureListener listener : listeners) {
+                future.addListener(listener);
+            }
         }
     }
 
