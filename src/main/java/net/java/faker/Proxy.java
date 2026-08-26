@@ -59,7 +59,7 @@ import java.util.Random;
 import java.util.function.Consumer;
 
 public class Proxy {
-    public static final String VERSION = "1.7";
+    public static final String VERSION = "1.8";
     public static InetSocketAddress proxyAddress = new InetSocketAddress("127.0.0.1", 25565);
     public static InetSocketAddress transferAddress;
     private static URI backendProxy;
