@@ -9,7 +9,7 @@ Support full IP interception so that clients connects to the real server IP.
 Inspired by [ViaProxy](https://github.com/ViaVersion/ViaProxy).
 
 ## Supported Minecraft versions
--  ### 1.7.2 - 26.1.2
+-  ### 1.7.2 - 26.2
 
 ## [Download](https://github.com/o1seth/faker/releases/latest)
 
